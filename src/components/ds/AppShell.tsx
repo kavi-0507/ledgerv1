@@ -39,7 +39,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Icon className="h-4.5 w-4.5" />
+      <Icon className="h-[18px] w-[18px]" />
       <span className="truncate">{item.label}</span>
     </Link>
   );
@@ -113,7 +113,7 @@ export function AppShell({
                       active && "bg-primary-soft",
                     )}
                   >
-                    <Icon className="h-4.5 w-4.5" />
+                    <Icon className="h-[18px] w-[18px]" />
                   </span>
                   <span className="truncate">{item.label}</span>
                 </Link>
