@@ -4,8 +4,10 @@ import {
   LayoutDashboard,
   Receipt,
   PieChart,
-  Users,
-  Bell,
+  Upload,
+  Sparkles,
+  ClipboardCheck,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,19 +17,24 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-const NAV: NavItem[] = [
-  { to: "/", label: "Overview", icon: LayoutDashboard },
+const PRIMARY: NavItem[] = [
+  { to: "/", label: "Home", icon: LayoutDashboard },
   { to: "/transactions", label: "Activity", icon: Receipt },
   { to: "/budgets", label: "Budgets", icon: PieChart },
-  { to: "/shared", label: "Shared", icon: Users },
-  { to: "/reminders", label: "Reminders", icon: Bell },
+  { to: "/insights", label: "Insights", icon: Sparkles },
+  { to: "/review", label: "Review", icon: ClipboardCheck },
+];
+
+const SECONDARY: NavItem[] = [
+  { to: "/import", label: "Import", icon: Upload },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 function useCurrentPath() {
   return useRouterState({ select: (s) => s.location.pathname });
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function DesktopLink({ item, active }: { item: NavItem; active: boolean }) {
   const Icon = item.icon;
   return (
     <Link
@@ -56,46 +63,55 @@ export function AppShell({
 
   return (
     <div className="min-h-screen w-full">
-      {/* ============== DESKTOP + TABLET (>= md) SIDEBAR ============== */}
+      {/* DESKTOP SIDEBAR */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-sidebar/60 backdrop-blur-xl md:flex">
-        <div className="flex h-16 items-center gap-2 px-6">
+        <Link to="/" className="flex h-16 items-center gap-2 px-6">
           <div className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground">
             <span className="text-display text-lg italic">L</span>
           </div>
           <span className="text-display text-xl">Ledger</span>
-        </div>
+        </Link>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {NAV.map((item) => (
-            <NavLink key={item.to} item={item} active={path === item.to} />
+          <p className="px-3 pb-2 pt-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Money
+          </p>
+          {PRIMARY.map((item) => (
+            <DesktopLink key={item.to} item={item} active={path === item.to} />
+          ))}
+          <p className="px-3 pb-2 pt-5 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Tools
+          </p>
+          {SECONDARY.map((item) => (
+            <DesktopLink key={item.to} item={item} active={path === item.to} />
           ))}
         </nav>
 
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Weekly review</p>
-          <p className="mt-0.5">Ready to check in with your money.</p>
+          <p className="font-medium text-foreground">Local backend</p>
+          <p className="mt-0.5 truncate">127.0.0.1:8000/api</p>
         </div>
       </aside>
 
-      {/* ============== MAIN ============== */}
+      {/* MAIN */}
       <div className="flex min-h-screen flex-col md:pl-64">
         {header && (
           <header className="glass sticky top-0 z-20 border-b border-border">
-            <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
               {header}
             </div>
           </header>
         )}
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pt-8 md:pb-10 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pt-8 md:pb-10 lg:px-8">
           {children}
         </main>
       </div>
 
-      {/* ============== MOBILE BOTTOM NAV ============== */}
+      {/* MOBILE BOTTOM NAV */}
       <nav className="glass fixed inset-x-0 bottom-0 z-40 border-t border-border pb-safe md:hidden">
         <ul className="mx-auto grid max-w-lg grid-cols-5">
-          {NAV.map((item) => {
+          {PRIMARY.map((item) => {
             const Icon = item.icon;
             const active = path === item.to;
             return (
