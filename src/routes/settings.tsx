@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useCategories, useMerchantRules, useProfile } from "@/lib/db";
+import { categoryIcon } from "@/lib/categories";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
 
