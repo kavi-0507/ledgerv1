@@ -102,6 +102,15 @@ export type DbRecommendation = {
   created_at: string;
 };
 
+export type ImportStatus =
+  | "preview"
+  | "pending"
+  | "confirmed"
+  | "committed"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
 export type DbImport = {
   id: string;
   user_id: string;
