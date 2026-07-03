@@ -317,7 +317,7 @@ function ImportPage() {
                       <p className="truncate font-medium">{h.filename ?? "Batch"}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDateTime(h.created_at)}
-                        {h.totals?.new !== undefined ? ` · ${h.totals.new} new` : ""}
+                        {h.imported_rows != null ? ` · ${h.imported_rows} imported` : ""}
                       </p>
                     </div>
                     <AlertDialog>
