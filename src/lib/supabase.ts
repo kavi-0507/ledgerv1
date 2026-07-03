@@ -16,44 +16,40 @@ export type DbCategory = {
   id: string;
   user_id: string;
   name: string;
+  slug: string | null;
   behaviour: string | null;
   color: string | null;
-  is_default: boolean | null;
+  icon: string | null;
   sort_order: number | null;
 };
 
 export type DbTransaction = {
   id: string;
   user_id: string;
+  account_id: string | null;
   occurred_on: string;
   description: string;
+  merchant: string | null;
   amount: number;
   direction: "in" | "out";
   category_id: string | null;
-  behaviour: string | null;
-  merchant: string | null;
   needs_review: boolean;
   review_reason: string | null;
   notes: string | null;
-  is_shared: boolean | null;
-  shared_split: number | null;
-  dedupe_hash: string | null;
-  import_batch_id: string | null;
+  source: string | null;
   created_at: string;
-  updated_at: string | null;
 };
 
 export type DbBudget = {
   id: string;
   user_id: string;
-  name: string;
   scope: "overall" | "category";
   period: "weekly" | "monthly";
   category_id: string | null;
   amount: number;
   starts_on: string | null;
+  is_active: boolean | null;
   created_at: string;
-  updated_at: string | null;
 };
 
 export type DbMerchantRule = {
@@ -70,9 +66,13 @@ export type DbReminder = {
   id: string;
   user_id: string;
   title: string;
-  description: string | null;
-  due_at: string | null;
+  detail: string | null;
+  due_on: string | null;
   state: "pending" | "snoozed" | "dismissed" | "done";
+  snoozed_until: string | null;
+  amount: number | null;
+  category_id: string | null;
+  recurrence: string | null;
   created_at: string;
 };
 
@@ -82,16 +82,25 @@ export type DbRecommendation = {
   title: string;
   body: string | null;
   tone: "positive" | "warning" | "negative" | "neutral" | "info" | null;
-  is_dismissed: boolean | null;
+  category_id: string | null;
+  score_delta: number | null;
+  dismissed: boolean | null;
+  valid_for: string | null;
   created_at: string;
 };
 
-export type DbImportBatch = {
+export type DbImport = {
   id: string;
   user_id: string;
   filename: string | null;
   status: string | null;
-  totals: Record<string, number> | null;
+  total_rows: number | null;
+  new_rows: number | null;
+  duplicate_rows: number | null;
+  invalid_rows: number | null;
+  imported_rows: number | null;
+  preview_token: string | null;
+  committed_at: string | null;
   created_at: string;
 };
 

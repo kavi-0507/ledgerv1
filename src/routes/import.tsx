@@ -13,7 +13,7 @@ import { SkeletonRow } from "@/components/ds/Skeletons";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
-import { useImportBatches, useMerchantRules, useCategories } from "@/lib/db";
+import { useImports, useMerchantRules, useCategories } from "@/lib/db";
 import { formatDateTime, humanize } from "@/lib/format";
 
 export const Route = createFileRoute("/import")({ component: ImportPage });
@@ -100,7 +100,7 @@ function ImportPage() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [filename, setFilename] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const historyQ = useImportBatches();
+  const historyQ = useImports();
   const rulesQ = useMerchantRules();
   const catsQ = useCategories();
 
@@ -190,12 +190,6 @@ function ImportPage() {
       if (!preview) return;
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user!.id;
-      const { data: batch, error: batchErr } = await supabase.from("import_batches").insert({
-        user_id: userId, filename: preview.filename, status: "completed",
-        totals: { new: preview.new_rows.length, exact: preview.exact_duplicates.length, possible: preview.possible_duplicates.length, invalid: preview.invalid_rows.length },
-      }).select().single();
-      if (batchErr) throw batchErr;
-
       const toInsert = [...preview.new_rows, ...preview.possible_duplicates].map(r => ({
         user_id: userId, occurred_on: r.occurred_on,
         merchant: r.description, description: r.description,
@@ -206,12 +200,22 @@ function ImportPage() {
         const { error } = await supabase.from("transactions").insert(toInsert);
         if (error) throw error;
       }
+      const { error: impErr } = await supabase.from("imports").insert({
+        user_id: userId, filename: preview.filename, status: "committed",
+        total_rows: preview.new_rows.length + preview.exact_duplicates.length + preview.possible_duplicates.length + preview.invalid_rows.length,
+        new_rows: preview.new_rows.length,
+        duplicate_rows: preview.exact_duplicates.length + preview.possible_duplicates.length,
+        invalid_rows: preview.invalid_rows.length,
+        imported_rows: toInsert.length,
+        committed_at: new Date().toISOString(),
+      });
+      if (impErr) throw impErr;
     },
     onSuccess: () => {
       toast.success("Import confirmed");
       setPreview(null); setFilename("");
       if (fileInput.current) fileInput.current.value = "";
-      qc.invalidateQueries({ queryKey: ["import_batches"] });
+      qc.invalidateQueries({ queryKey: ["imports"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["home_month_tx"] });
     },
@@ -220,18 +224,16 @@ function ImportPage() {
 
   const deleteM = useMutation({
     mutationFn: async (id: string) => {
-      // delete transactions in batch first
-      await supabase.from("transactions").delete().eq("import_batch_id", id);
-      const { error } = await supabase.from("import_batches").delete().eq("id", id);
+      const { error } = await supabase.from("imports").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Import batch removed");
-      qc.invalidateQueries({ queryKey: ["import_batches"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Import removed");
+      qc.invalidateQueries({ queryKey: ["imports"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const p = preview;
   const history = historyQ.data ?? [];
@@ -315,7 +317,7 @@ function ImportPage() {
                       <p className="truncate font-medium">{h.filename ?? "Batch"}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDateTime(h.created_at)}
-                        {h.totals?.new !== undefined ? ` · ${h.totals.new} new` : ""}
+                        {h.imported_rows != null ? ` · ${h.imported_rows} imported` : ""}
                       </p>
                     </div>
                     <AlertDialog>

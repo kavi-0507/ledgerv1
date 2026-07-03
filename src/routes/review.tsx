@@ -51,12 +51,13 @@ function ReviewPage() {
   const snoozeM = useMutation({
     mutationFn: async (id: string) => {
       const due = new Date(Date.now() + 60 * 60_000).toISOString();
-      const { error } = await supabase.from("reminders").update({ state: "snoozed", due_at: due }).eq("id", id);
+      const { error } = await supabase.from("reminders").update({ state: "snoozed", snoozed_until: due }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Snoozed for 1 hour"); qc.invalidateQueries({ queryKey: ["reminders"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const currentWeek = (weeklyQ.data ?? []).find(w => w.state === "open");
   const completedWeeks = (weeklyQ.data ?? []).filter(w => w.state === "completed");
@@ -148,8 +149,9 @@ function ReviewPage() {
                   {reminders.map(r => (
                     <li key={r.id} className="rounded-lg border border-border bg-muted/30 p-3">
                       <p className="font-medium">{r.title}</p>
-                      {r.description && <p className="mt-0.5 text-sm text-muted-foreground">{r.description}</p>}
-                      {r.due_at && <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ClockAlert className="h-3 w-3" />{formatDateTime(r.due_at)}</p>}
+                      {r.detail && <p className="mt-0.5 text-sm text-muted-foreground">{r.detail}</p>}
+                      {r.due_on && <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ClockAlert className="h-3 w-3" />{formatDate(r.due_on)}</p>}
+
                       <div className="mt-3 flex gap-2">
                         <Button size="sm" variant="outline" disabled={snoozeM.isPending} onClick={() => snoozeM.mutate(r.id)}>Snooze 1h</Button>
                         <Button size="sm" variant="ghost" disabled={dismissM.isPending} onClick={() => dismissM.mutate(r.id)}>Dismiss</Button>

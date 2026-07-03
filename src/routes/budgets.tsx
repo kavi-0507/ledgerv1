@@ -149,10 +149,11 @@ function BudgetCard({ budget, highlight, spent, onEdit }: { budget: DbBudget & {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{budget.scope} · {budget.period}</p>
-          <h3 className="mt-1 truncate text-display text-2xl">{budget.name || catName}</h3>
+          <h3 className="mt-1 truncate text-display text-2xl">{catName}</h3>
         </div>
         {pct > 80 && <StatusPill tone={pct > 100 ? "negative" : "warning"} dot>{pct > 100 ? "Over" : "Watch"}</StatusPill>}
       </div>
+
 
       <div className="flex items-baseline gap-2">
         <span data-numeric className="text-display text-4xl">{formatMoney(spent, { compact: true })}</span>
@@ -195,7 +196,6 @@ function BudgetCard({ budget, highlight, spent, onEdit }: { budget: DbBudget & {
 function BudgetDialog({ open, onOpenChange, budget, categories }: { open: boolean; onOpenChange: (o: boolean) => void; budget?: DbBudget; categories: DbCategory[] }) {
   const qc = useQueryClient();
   const isEdit = !!budget;
-  const [name, setName] = useState("");
   const [scope, setScope] = useState<"overall" | "category">("category");
   const [period, setPeriod] = useState<"weekly" | "monthly">("monthly");
   const [categoryId, setCategoryId] = useState("");
@@ -203,7 +203,6 @@ function BudgetDialog({ open, onOpenChange, budget, categories }: { open: boolea
 
   useEffect(() => {
     if (open) {
-      setName(budget?.name ?? "");
       setScope((budget?.scope as any) ?? "category");
       setPeriod((budget?.period as any) ?? "monthly");
       setCategoryId(budget?.category_id ?? "");
@@ -214,9 +213,10 @@ function BudgetDialog({ open, onOpenChange, budget, categories }: { open: boolea
   const save = useMutation({
     mutationFn: async () => {
       const payload = {
-        name, scope, period,
+        scope, period,
         category_id: scope === "overall" ? null : (categoryId || null),
         amount: Number(amount),
+        is_active: true,
       };
       if (isEdit) {
         const { error } = await supabase.from("budgets").update(payload).eq("id", budget!.id);
@@ -236,17 +236,17 @@ function BudgetDialog({ open, onOpenChange, budget, categories }: { open: boolea
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const valid = name.trim() && amount && (scope === "overall" || categoryId);
+  const valid = !!amount && (scope === "overall" || !!categoryId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit budget" : "New budget"}</DialogTitle>
-          <DialogDescription>Choose a name, scope and amount. Progress updates automatically.</DialogDescription>
+          <DialogDescription>Choose scope, period and amount. Progress updates automatically.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
-          <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Monthly essentials" /></div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Scope</Label>
