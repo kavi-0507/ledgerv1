@@ -165,20 +165,25 @@ function HomeContent({ transactions, budgets, reminders, recs }: {
         ) : (
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends}>
+              <AreaChart data={trends} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="sp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(v: number) => formatMoney(v)} />
-                <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" fill="url(#sp)" strokeWidth={2} />
+                <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatMoney(v, { compact: true })} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--popover-foreground)" }}
+                  labelStyle={{ color: "var(--muted-foreground)" }}
+                  formatter={(v: number) => formatMoney(v)}
+                />
+                <Area type="monotone" dataKey="value" stroke="var(--primary)" fill="url(#sp)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--foreground)", stroke: "var(--primary)", strokeWidth: 1.5 }} activeDot={{ r: 5, fill: "var(--primary)", stroke: "var(--background)", strokeWidth: 2 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+
         )}
       </div>
 
