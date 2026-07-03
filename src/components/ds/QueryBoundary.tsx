@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { ErrorState } from "./ErrorState";
-import { ApiError } from "@/lib/api";
 
 type Props = {
   isLoading?: boolean;
@@ -22,11 +21,9 @@ export function QueryBoundary({
   if (isLoading) return <>{loading}</>;
   if (isError) {
     const message =
-      error instanceof ApiError
+      error instanceof Error
         ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Something went wrong loading this data.";
+        : "Something went wrong loading this data.";
     return (
       <ErrorState
         title="We couldn't load this"

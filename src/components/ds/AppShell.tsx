@@ -88,8 +88,8 @@ export function AppShell({
         </nav>
 
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Local backend</p>
-          <p className="mt-0.5 truncate">127.0.0.1:8000/api</p>
+          <p className="font-medium text-foreground">Ledger</p>
+          <p className="mt-0.5 truncate">Signed in via Supabase</p>
         </div>
       </aside>
 
