@@ -57,6 +57,32 @@ function AuthPage() {
             {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
           </Button>
         </form>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const testEmail = "test@ledger.test";
+            const testPassword = "testtest123";
+            try {
+              try {
+                await signIn(testEmail, testPassword);
+              } catch {
+                await signUp(testEmail, testPassword);
+                await signIn(testEmail, testPassword);
+              }
+              toast.success("Signed in as test user");
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Test login failed");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Use test account
+        </Button>
         <button
           type="button"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
