@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { ErrorState } from "./ErrorState";
-import { ApiError } from "@/lib/api";
 
 type Props = {
   isLoading?: boolean;
