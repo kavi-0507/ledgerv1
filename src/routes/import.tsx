@@ -13,7 +13,7 @@ import { SkeletonRow } from "@/components/ds/Skeletons";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
-import { useImportBatches, useMerchantRules, useCategories } from "@/lib/db";
+import { useImports, useMerchantRules, useCategories } from "@/lib/db";
 import { formatDateTime, humanize } from "@/lib/format";
 
 export const Route = createFileRoute("/import")({ component: ImportPage });
