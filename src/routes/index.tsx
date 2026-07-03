@@ -221,18 +221,40 @@ function HomeContent({ transactions, budgets, reminders, recs }: {
             <EmptyState title="No transactions yet" description="Add one manually or import a CSV." action={<Link to="/import"><Button size="sm">Import CSV</Button></Link>} />
           ) : (
             <ul className="divide-y divide-border">
-              {recent.map(t => (
-                <li key={t.id} className="flex items-center gap-3 py-3">
-                  <div className="h-9 w-9 grid place-items-center rounded-md bg-muted text-xs font-medium">{t.description.slice(0,1).toUpperCase()}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{t.description}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateShort(t.occurred_on)} · {t.categories?.name ?? "Uncategorised"}</p>
-                  </div>
-                  <span data-numeric className={`text-sm font-medium ${t.direction === "in" ? "text-positive" : ""}`}>
-                    {t.direction === "in" ? "+" : "−"}{formatMoney(t.amount)}
-                  </span>
-                </li>
-              ))}
+              {recent.map(t => {
+                const catName = t.categories?.name ?? null;
+                const title = t.merchant || t.description;
+                return (
+                  <li key={t.id} className="flex items-center gap-3 py-3">
+                    <div className="h-9 w-9 grid place-items-center rounded-md bg-muted text-base shrink-0" aria-hidden>
+                      {catName ? categoryIcon(catName) : "❓"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{title}</p>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                        <span>{formatDateShort(t.occurred_on)}</span>
+                        {catName && (
+                          <>
+                            <span aria-hidden>·</span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5">
+                              <span aria-hidden>{categoryIcon(catName)}</span>{catName}
+                            </span>
+                          </>
+                        )}
+                        {t.behaviour && (
+                          <span className="inline-flex items-center rounded-full border border-border/60 px-1.5 py-0.5">
+                            {t.behaviour}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {t.needs_review && <StatusPill tone="warning">Review</StatusPill>}
+                    <span data-numeric className={`text-sm font-medium ${t.direction === "in" ? "text-positive" : ""}`}>
+                      {t.direction === "in" ? "+" : "−"}{formatMoney(t.amount)}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
