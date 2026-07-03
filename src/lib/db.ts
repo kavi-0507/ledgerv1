@@ -187,3 +187,36 @@ export function endOfMonth(d = new Date()): string {
   const x = new Date(d.getFullYear(), d.getMonth() + 1, 0);
   return x.toISOString().slice(0, 10);
 }
+
+/** Returns the current month if it has any transactions, otherwise the most
+ *  recent month that does. Keeps monthly pages meaningful when the latest
+ *  imported data is not from the current calendar month. */
+export function useActiveMonth() {
+  return useQuery({
+    queryKey: ["active_month"],
+    queryFn: async (): Promise<{ from: string; to: string; isFallback: boolean; label: string }> => {
+      const now = new Date();
+      const curFrom = startOfMonth(now);
+      const curTo = endOfMonth(now);
+      const { count, error } = await supabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .gte("occurred_on", curFrom).lte("occurred_on", curTo);
+      if (error) throw error;
+      if ((count ?? 0) > 0) {
+        return { from: curFrom, to: curTo, isFallback: false, label: now.toLocaleString(undefined, { month: "long", year: "numeric" }) };
+      }
+      const { data, error: e2 } = await supabase
+        .from("transactions").select("occurred_on").order("occurred_on", { ascending: false }).limit(1);
+      if (e2) throw e2;
+      const latest = data?.[0]?.occurred_on ? new Date(data[0].occurred_on as string) : now;
+      const from = startOfMonth(latest);
+      const to = endOfMonth(latest);
+      return {
+        from, to,
+        isFallback: data?.[0]?.occurred_on ? true : false,
+        label: latest.toLocaleString(undefined, { month: "long", year: "numeric" }),
+      };
+    },
+  });
+}
