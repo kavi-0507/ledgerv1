@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 import type {
   DbCategory, DbTransaction, DbBudget, DbMerchantRule,
-  DbReminder, DbRecommendation, DbImportBatch, DbWeeklyReview, DbProfile,
+  DbReminder, DbRecommendation, DbImport, DbWeeklyReview, DbProfile,
 } from "./supabase";
 
 // ---- Categories ----
@@ -65,7 +65,9 @@ export function useBudgets() {
     queryKey: ["budgets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("budgets").select("*, categories(id,name,color)").order("name", { ascending: true });
+        .from("budgets")
+        .select("*, categories(id,name,color)")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as (DbBudget & { categories?: { id: string; name: string; color: string | null } | null })[];
     },
@@ -89,7 +91,10 @@ export function useReminders() {
   return useQuery({
     queryKey: ["reminders"],
     queryFn: async (): Promise<DbReminder[]> => {
-      const { data, error } = await supabase.from("reminders").select("*").order("due_at", { ascending: true, nullsFirst: false });
+      const { data, error } = await supabase
+        .from("reminders")
+        .select("*")
+        .order("due_on", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as DbReminder[];
     },
@@ -103,21 +108,21 @@ export function useRecommendations() {
     queryFn: async (): Promise<DbRecommendation[]> => {
       const { data, error } = await supabase
         .from("recommendations").select("*")
-        .eq("is_dismissed", false).order("created_at", { ascending: false });
+        .eq("dismissed", false).order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as DbRecommendation[];
     },
   });
 }
 
-// ---- Import batches ----
-export function useImportBatches() {
+// ---- Imports ----
+export function useImports() {
   return useQuery({
-    queryKey: ["import_batches"],
-    queryFn: async (): Promise<DbImportBatch[]> => {
-      const { data, error } = await supabase.from("import_batches").select("*").order("created_at", { ascending: false });
+    queryKey: ["imports"],
+    queryFn: async (): Promise<DbImport[]> => {
+      const { data, error } = await supabase.from("imports").select("*").order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as DbImportBatch[];
+      return (data ?? []) as DbImport[];
     },
   });
 }
@@ -139,7 +144,9 @@ export function useProfile() {
   return useQuery({
     queryKey: ["profile"],
     queryFn: async (): Promise<DbProfile | null> => {
-      const { data, error } = await supabase.from("profiles").select("*").maybeSingle();
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return null;
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", userData.user.id).maybeSingle();
       if (error) throw error;
       return data as DbProfile | null;
     },
