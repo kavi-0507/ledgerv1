@@ -202,6 +202,7 @@ function NewTransactionDialog() {
   const qc = useQueryClient();
   const categories = useCategories();
   const [open, setOpen] = useState(false);
+  const [merchant, setMerchant] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"out" | "in">("out");
@@ -212,15 +213,23 @@ function NewTransactionDialog() {
     mutationFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
+      const m = merchant.trim();
+      const d = description.trim();
       const { error } = await supabase.from("transactions").insert({
-        user_id: userData.user.id, description, amount: Number(amount),
-        direction, occurred_on: occurredOn, category_id: categoryId || null,
+        user_id: userData.user.id,
+        merchant: m || null,
+        description: d || m,
+        amount: Number(amount),
+        direction,
+        occurred_on: occurredOn,
+        category_id: categoryId || null,
+        source: "manual",
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Transaction added");
-      setOpen(false); setDescription(""); setAmount(""); setCategoryId("");
+      setOpen(false); setMerchant(""); setDescription(""); setAmount(""); setCategoryId("");
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["home_month_tx"] });
     },
