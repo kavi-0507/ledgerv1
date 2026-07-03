@@ -68,9 +68,7 @@ function HomePage() {
         loading={<HomeSkeleton />}
       >
         <HomeContent
-          // supabase joined selects are typed as arrays; safe cast
-
-          transactions={tx.data ?? []}
+          transactions={(tx.data ?? []) as unknown as Tx[]}
           budgets={budgets.data ?? []}
           reminders={reminders.data ?? []}
           recs={recs.data ?? []}
