@@ -11,7 +11,7 @@ import { ProgressBar } from "@/components/ds/ProgressBar";
 import { SkeletonChart, SkeletonStatCard } from "@/components/ds/Skeletons";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
-import { useBudgets, useCategories, useRecommendations, startOfMonth, endOfMonth } from "@/lib/db";
+import { useBudgets, useCategories, useRecommendations, useActiveMonth } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/insights")({ component: InsightsPage });
@@ -22,18 +22,17 @@ function shiftMonth(iso: string, delta: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function useInsightsData() {
-  const from = startOfMonth();
-  const to = endOfMonth();
-  const prevFrom = shiftMonth(from, -1);
-  const prevTo = shiftMonth(to, -1);
+function useInsightsData(from: string | undefined, to: string | undefined) {
+  const prevFrom = from ? shiftMonth(from, -1) : undefined;
+  const prevTo = to ? shiftMonth(to, -1) : undefined;
 
   return useQuery({
     queryKey: ["insights", from, to],
+    enabled: !!from && !!to,
     queryFn: async () => {
       const [cur, prev] = await Promise.all([
-        supabase.from("transactions").select("amount,category_id,direction,occurred_on").gte("occurred_on", from).lte("occurred_on", to),
-        supabase.from("transactions").select("amount,category_id,direction,occurred_on").gte("occurred_on", prevFrom).lte("occurred_on", prevTo),
+        supabase.from("transactions").select("amount,category_id,direction,occurred_on").gte("occurred_on", from!).lte("occurred_on", to!),
+        supabase.from("transactions").select("amount,category_id,direction,occurred_on").gte("occurred_on", prevFrom!).lte("occurred_on", prevTo!),
       ]);
       if (cur.error) throw cur.error;
       if (prev.error) throw prev.error;
@@ -43,17 +42,18 @@ function useInsightsData() {
 }
 
 function InsightsPage() {
-  const data = useInsightsData();
+  const active = useActiveMonth();
+  const data = useInsightsData(active.data?.from, active.data?.to);
   const budgets = useBudgets();
   const cats = useCategories();
   const recs = useRecommendations();
 
   return (
     <AppShell header={<h1 className="truncate text-display text-xl sm:text-2xl">Insights</h1>}>
-      <PageHeader eyebrow="Insights" title="Understand your habits." description="Scores and comparisons from your own spending." />
+      <PageHeader eyebrow="Insights" title="Understand your habits." description={active.data?.label ? `Comparing ${active.data.label}${active.data.isFallback ? " (latest month with data)" : ""} against the previous month.` : "Scores and comparisons from your own spending."} />
 
       <QueryBoundary
-        isLoading={data.isLoading || budgets.isLoading} isError={data.isError} error={data.error}
+        isLoading={active.isLoading || data.isLoading || budgets.isLoading} isError={data.isError} error={data.error}
         onRetry={() => { data.refetch(); budgets.refetch(); }}
         loading={<div className="space-y-6"><SkeletonChart /><div className="grid gap-4 md:grid-cols-3"><SkeletonStatCard /><SkeletonStatCard /><SkeletonStatCard /></div></div>}
       >

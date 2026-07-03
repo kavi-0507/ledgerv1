@@ -14,22 +14,21 @@ import { ProgressBar } from "@/components/ds/ProgressBar";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
-import { useBudgets, useReminders, useRecommendations, startOfMonth, endOfMonth } from "@/lib/db";
+import { useBudgets, useReminders, useRecommendations, useActiveMonth } from "@/lib/db";
 import { formatDateShort, formatMoney, humanize } from "@/lib/format";
 import { categoryIcon } from "@/lib/categories";
 
 export const Route = createFileRoute("/")({ component: HomePage });
 
-function useMonthTransactions() {
-  const from = startOfMonth();
-  const to = endOfMonth();
+function useMonthTransactions(from: string | undefined, to: string | undefined) {
   return useQuery({
     queryKey: ["home_month_tx", from, to],
+    enabled: !!from && !!to,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
         .select("id,occurred_on,description,merchant,behaviour,amount,direction,category_id,needs_review,categories(id,name,color)")
-        .gte("occurred_on", from).lte("occurred_on", to)
+        .gte("occurred_on", from!).lte("occurred_on", to!)
         .order("occurred_on", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -38,13 +37,16 @@ function useMonthTransactions() {
 }
 
 function HomePage() {
-  const tx = useMonthTransactions();
+  const active = useActiveMonth();
+  const tx = useMonthTransactions(active.data?.from, active.data?.to);
   const budgets = useBudgets();
   const reminders = useReminders();
   const recs = useRecommendations();
 
-  const loading = tx.isLoading || budgets.isLoading;
-  const error = tx.error ?? budgets.error;
+  const loading = active.isLoading || tx.isLoading || budgets.isLoading;
+  const error = active.error ?? tx.error ?? budgets.error;
+  const monthLabel = active.data?.label;
+  const isFallback = active.data?.isFallback;
 
   return (
     <AppShell
@@ -60,7 +62,7 @@ function HomePage() {
         </div>
       }
     >
-      <PageHeader eyebrow="Home" title="Good to see you." description="A calm summary of your spending, budgets and progress this month." />
+      <PageHeader eyebrow="Home" title="Good to see you." description={monthLabel ? `Showing ${monthLabel}${isFallback ? " (no activity yet this month)" : ""}.` : "A calm summary of your spending, budgets and progress this month."} />
       <QueryBoundary
         isLoading={loading}
         isError={!!error}
