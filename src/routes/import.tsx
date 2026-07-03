@@ -190,16 +190,18 @@ function ImportPage() {
       if (!preview) return;
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user!.id;
+      const accountId = await ensureDefaultAccountId(userId);
       const toInsert = [...preview.new_rows, ...preview.possible_duplicates].map(r => ({
-        user_id: userId, occurred_on: r.occurred_on,
+        user_id: userId, account_id: accountId, occurred_on: r.occurred_on,
         merchant: r.description, description: r.description,
         amount: r.amount, direction: r.direction, category_id: r.category_id,
-        source: "import",
+        source: "import", external_hash: r.external_hash,
       }));
       if (toInsert.length > 0) {
         const { error } = await supabase.from("transactions").insert(toInsert);
         if (error) throw error;
       }
+
       const { error: impErr } = await supabase.from("imports").insert({
         user_id: userId, filename: preview.filename, status: "committed",
         total_rows: preview.new_rows.length + preview.exact_duplicates.length + preview.possible_duplicates.length + preview.invalid_rows.length,
