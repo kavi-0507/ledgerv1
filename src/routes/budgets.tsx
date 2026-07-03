@@ -19,23 +19,22 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
 import type { DbBudget, DbCategory } from "@/lib/supabase";
-import { useBudgets, useCategories, startOfMonth, endOfMonth } from "@/lib/db";
+import { useBudgets, useCategories, useActiveMonth } from "@/lib/db";
 import { useQuery } from "@tanstack/react-query";
 import { formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/budgets")({ component: BudgetsPage });
 
-function useMonthSpendByCategory() {
-  const from = startOfMonth();
-  const to = endOfMonth();
+function useMonthSpendByCategory(from: string | undefined, to: string | undefined) {
   return useQuery({
     queryKey: ["budgets_month_spend", from, to],
+    enabled: !!from && !!to,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
         .select("amount,category_id,direction,occurred_on")
         .eq("direction", "out")
-        .gte("occurred_on", from).lte("occurred_on", to);
+        .gte("occurred_on", from!).lte("occurred_on", to!);
       if (error) throw error;
       const byCat = new Map<string | null, number>();
       let total = 0;
@@ -55,7 +54,8 @@ function BudgetsPage() {
 
   const q = useBudgets();
   const catsQ = useCategories();
-  const spendQ = useMonthSpendByCategory();
+  const active = useActiveMonth();
+  const spendQ = useMonthSpendByCategory(active.data?.from, active.data?.to);
 
   const items = q.data ?? [];
   const overall = items.find(b => b.scope === "overall");
