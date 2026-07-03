@@ -94,7 +94,7 @@ function HomeSkeleton() {
   );
 }
 
-type Tx = { id: string; occurred_on: string; description: string; amount: number; direction: string; category_id: string | null; needs_review: boolean; categories?: { id: string; name: string; color: string | null } | null };
+type Tx = { id: string; occurred_on: string; description: string; merchant: string | null; behaviour: string | null; amount: number; direction: string; category_id: string | null; needs_review: boolean; categories?: { id: string; name: string; color: string | null } | null };
 
 function HomeContent({ transactions, budgets, reminders, recs }: {
   transactions: Tx[];
