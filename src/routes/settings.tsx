@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { LogOut, Plus, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { LogOut, Plus, ShieldCheck, Tag, Trash2, UserRound } from "lucide-react";
 
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useCategories, useMerchantRules, useProfile } from "@/lib/db";
+import { categoryIcon } from "@/lib/categories";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
 
@@ -29,6 +30,7 @@ function SettingsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <SessionCard />
         <ProfileCard />
+        <CategoriesCard />
         <MerchantRulesCard />
         <PrivacyCard />
       </div>
@@ -227,6 +229,100 @@ function CreateRuleDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CategoriesCard() {
+  const qc = useQueryClient();
+  const q = useCategories();
+  const [name, setName] = useState("");
+  const cats = q.data ?? [];
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("Name required");
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const { error } = await supabase.from("categories").insert({
+        user_id: userData.user.id, name: trimmed, slug, sort_order: (cats.length + 1) * 10,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Category added"); setName(""); qc.invalidateQueries({ queryKey: ["categories"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const del = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("categories").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Category deleted");
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="surface-card p-5 sm:p-6 lg:col-span-2">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-md bg-primary-soft text-primary"><Tag className="h-4 w-4" /></span>
+          <div>
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Categories</p>
+            <h2 className="text-display text-2xl">Your buckets</h2>
+          </div>
+        </div>
+      </div>
+      <div className="mb-4 flex gap-2">
+        <Input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. Meal Plan"
+          onKeyDown={e => { if (e.key === "Enter" && !create.isPending) create.mutate(); }}
+        />
+        <Button disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
+          <Plus className="mr-1.5 h-4 w-4" />Add
+        </Button>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        The icon and grouping (Essentials, Lifestyle, Finances, Other) are picked from the name automatically.
+      </p>
+      <QueryBoundary
+        isLoading={q.isLoading} isError={q.isError} error={q.error}
+        onRetry={() => q.refetch()} loading={<><SkeletonRow /><SkeletonRow /></>}
+      >
+        {cats.length === 0 ? (
+          <EmptyState title="No categories yet" description="Add one above — try Meal Plan, Groceries, Transport…" />
+        ) : (
+          <ul className="grid gap-1 sm:grid-cols-2">
+            {cats.map(c => (
+              <li key={c.id} className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <span aria-hidden className="text-base">{categoryIcon(c.name)}</span>
+                <span className="flex-1 truncate text-sm">{c.name}</span>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild><Button variant="ghost" size="sm"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete "{c.name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>Transactions in this category will become uncategorised. Merchant rules using it will still exist but point to nothing.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => del.mutate(c.id)}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </li>
+            ))}
+          </ul>
+        )}
+      </QueryBoundary>
+    </div>
   );
 }
 
