@@ -271,7 +271,7 @@ function TransactionDialog(props: ModalProps) {
               onClick={() => setDirection("out")}
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
-                direction === "out" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                direction === "out" ? "bg-destructive text-destructive-foreground" : "hover:bg-muted",
               )}
             >
               <ArrowDownLeft className="h-4 w-4" /> Expense
