@@ -28,7 +28,7 @@ function useMonthTransactions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("id,occurred_on,description,amount,direction,category_id,needs_review,categories(id,name,color)")
+        .select("id,occurred_on,description,merchant,behaviour,amount,direction,category_id,needs_review,categories(id,name,color)")
         .gte("occurred_on", from).lte("occurred_on", to)
         .order("occurred_on", { ascending: false });
       if (error) throw error;
