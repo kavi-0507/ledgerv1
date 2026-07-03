@@ -119,10 +119,13 @@ function ImportPage() {
       const userId = userData.user?.id;
       if (!userId) throw new Error("Not signed in");
 
-      // Existing dedupe hashes
-      const { data: existing } = await supabase.from("transactions").select("dedupe_hash,description,amount,occurred_on");
-      const existingHashes = new Set<string>((existing ?? []).map(r => (r as any).dedupe_hash).filter(Boolean));
+      // Existing rows for dedupe (compute hash client-side; column may not exist in DB)
+      const { data: existing } = await supabase.from("transactions").select("description,amount,occurred_on,direction");
       const existingFuzzy = (existing ?? []) as any[];
+      const existingHashes = new Set<string>();
+      for (const e of existingFuzzy) {
+        existingHashes.add(`${e.occurred_on}|${(e.description ?? "").toLowerCase()}|${Number(e.amount)}|${e.direction}`);
+      }
 
       const rules = rulesQ.data ?? [];
 
@@ -139,7 +142,7 @@ function ImportPage() {
         }
         const direction: "in" | "out" = amt >= 0 ? (r["debit"] ? "out" : "in") : "out";
         const abs = Math.abs(amt);
-        const hash = await sha256(`${userId}|${occurred_on}|${desc.trim().toLowerCase()}|${abs.toFixed(2)}|${direction}`);
+        const hash = `${occurred_on}|${desc.trim().toLowerCase()}|${abs}|${direction}`;
         // rule match
         let category_id: string | null = null;
         for (const rule of rules) {
@@ -194,9 +197,10 @@ function ImportPage() {
       if (batchErr) throw batchErr;
 
       const toInsert = [...preview.new_rows, ...preview.possible_duplicates].map(r => ({
-        user_id: userId, occurred_on: r.occurred_on, description: r.description,
+        user_id: userId, occurred_on: r.occurred_on,
+        merchant: r.description, description: r.description,
         amount: r.amount, direction: r.direction, category_id: r.category_id,
-        dedupe_hash: r.dedupe_hash, import_batch_id: (batch as any).id,
+        source: "import",
       }));
       if (toInsert.length > 0) {
         const { error } = await supabase.from("transactions").insert(toInsert);

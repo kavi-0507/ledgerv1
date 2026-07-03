@@ -202,6 +202,7 @@ function NewTransactionDialog() {
   const qc = useQueryClient();
   const categories = useCategories();
   const [open, setOpen] = useState(false);
+  const [merchant, setMerchant] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"out" | "in">("out");
@@ -212,15 +213,23 @@ function NewTransactionDialog() {
     mutationFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
+      const m = merchant.trim();
+      const d = description.trim();
       const { error } = await supabase.from("transactions").insert({
-        user_id: userData.user.id, description, amount: Number(amount),
-        direction, occurred_on: occurredOn, category_id: categoryId || null,
+        user_id: userData.user.id,
+        merchant: m || null,
+        description: d || m,
+        amount: Number(amount),
+        direction,
+        occurred_on: occurredOn,
+        category_id: categoryId || null,
+        source: "manual",
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Transaction added");
-      setOpen(false); setDescription(""); setAmount(""); setCategoryId("");
+      setOpen(false); setMerchant(""); setDescription(""); setAmount(""); setCategoryId("");
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["home_month_tx"] });
     },
@@ -233,7 +242,8 @@ function NewTransactionDialog() {
       <DialogContent>
         <DialogHeader><DialogTitle>New transaction</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Merchant</Label><Input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="Tesco" /></div>
+          <div className="space-y-1.5"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional details" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>Amount</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={occurredOn} onChange={e => setOccurredOn(e.target.value)} /></div>
@@ -259,7 +269,7 @@ function NewTransactionDialog() {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={() => create.mutate()} disabled={create.isPending || !description || !amount}>Add</Button>
+          <Button onClick={() => create.mutate()} disabled={create.isPending || (!merchant && !description) || !amount}>Add</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
