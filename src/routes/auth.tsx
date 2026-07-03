@@ -64,7 +64,7 @@ function AuthPage() {
           disabled={busy}
           onClick={async () => {
             setBusy(true);
-            const testEmail = "test@ledger.test";
+            const testEmail = "test@lovable.app";
             const testPassword = "testtest123";
             try {
               try {
