@@ -261,7 +261,7 @@ function ImportPage() {
                 <Button onClick={() => fileInput.current?.click()} disabled={busy}>
                   <Upload className="mr-1.5 h-4 w-4" />{busy ? "Reading…" : "Choose CSV"}
                 </Button>
-                <Button variant="outline" disabled title="PDF import is not supported in this build.">Import PDF</Button>
+                
               </div>
             </div>
             {filename && <p className="mt-4 text-sm text-muted-foreground">Selected: <span className="font-medium text-foreground">{filename}</span></p>}
