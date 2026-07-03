@@ -40,8 +40,16 @@ type Preview = {
   invalid_rows: (ParsedRow & { reason: string })[];
 };
 
+const KNOWN_HEADERS = new Set([
+  "date", "occurred_on", "transaction date", "posting date",
+  "description", "details", "narrative", "memo", "merchant",
+  "amount", "value", "debit", "credit",
+]);
+
 function parseCsv(text: string): Record<string, string>[] {
-  const lines = text.replace(/\r/g, "").split("\n").filter(l => l.length > 0);
+  // Strip UTF-8 BOM
+  const clean = text.replace(/^\uFEFF/, "").replace(/\r/g, "");
+  const lines = clean.split("\n").filter(l => l.length > 0);
   if (lines.length === 0) return [];
   const parseLine = (line: string) => {
     const out: string[] = [];
@@ -61,8 +69,24 @@ function parseCsv(text: string): Record<string, string>[] {
     out.push(cur);
     return out;
   };
-  const header = parseLine(lines[0]).map(h => h.trim().toLowerCase());
-  return lines.slice(1).map(l => {
+
+  const first = parseLine(lines[0]).map(h => h.trim().toLowerCase());
+  const hasHeader = first.some(h => KNOWN_HEADERS.has(h));
+
+  let header: string[];
+  let dataLines: string[];
+  if (hasHeader) {
+    header = first;
+    dataLines = lines.slice(1);
+  } else {
+    // Headerless CSV — assume: date, description, amount (extra cols kept as col_N)
+    const width = first.length;
+    header = ["date", "description", "amount"].slice(0, Math.min(3, width));
+    while (header.length < width) header.push(`col_${header.length}`);
+    dataLines = lines;
+  }
+
+  return dataLines.map(l => {
     const values = parseLine(l);
     const row: Record<string, string> = {};
     header.forEach((h, i) => row[h] = (values[i] ?? "").trim());
