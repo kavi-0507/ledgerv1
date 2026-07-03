@@ -106,7 +106,7 @@ export type DbImport = {
   id: string;
   user_id: string;
   filename: string | null;
-  status: string | null;
+  status: ImportStatus | null;
   total_rows: number | null;
   new_rows: number | null;
   duplicate_rows: number | null;
