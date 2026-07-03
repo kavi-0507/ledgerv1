@@ -15,7 +15,8 @@ const RULES: Array<{ match: RegExp; meta: Meta }> = [
   { match: /household|home/i,          meta: { icon: "🏡", group: "ESSENTIALS", order: 2 } },
   { match: /utilit|bills?/i,           meta: { icon: "💡", group: "ESSENTIALS", order: 3 } },
   { match: /grocer|supermarket/i,      meta: { icon: "🛒", group: "ESSENTIALS", order: 4 } },
-  { match: /transport|travel card|tfl|commute/i, meta: { icon: "🚇", group: "ESSENTIALS", order: 5 } },
+  { match: /meal\s*plan|tiffin/i,      meta: { icon: "🍱", group: "ESSENTIALS", order: 5 } },
+  { match: /transport|travel card|tfl|commute/i, meta: { icon: "🚇", group: "ESSENTIALS", order: 6 } },
   // Lifestyle
   { match: /eating\s*out|restaurant|takeaway|food\s*out/i, meta: { icon: "🍔", group: "LIFESTYLE", order: 1 } },
   { match: /shopping|clothes/i,        meta: { icon: "🛍️", group: "LIFESTYLE", order: 2 } },
