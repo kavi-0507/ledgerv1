@@ -269,7 +269,7 @@ function NewTransactionDialog() {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={() => create.mutate()} disabled={create.isPending || !description || !amount}>Add</Button>
+          <Button onClick={() => create.mutate()} disabled={create.isPending || (!merchant && !description) || !amount}>Add</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
