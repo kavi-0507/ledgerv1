@@ -3,16 +3,13 @@
 // corresponding store is empty for this user, so users can freely delete or
 // edit defaults without them reappearing.
 //
-// Categories + merchant rules are stored in Supabase (per-account).
-// Budget groups still live in localStorage — see budgetGroups.ts — so those
-// defaults are seeded into the same store keyed by user id.
+// All three stores live in Supabase (categories, merchant_rules,
+// budget_groups) so defaults follow the user across devices.
 
 import { supabase } from "./supabase";
-import type { BudgetGroup } from "./budgetGroups";
 import { STUDENT_SUGGESTIONS, matchSuggestionCategories } from "./budgetGroups";
 
 const SEED_FLAG_PREFIX = "ledger:seeded:";
-const BUDGET_KEY_PREFIX = "ledger:budget-groups:";
 
 type DefaultCategory = {
   name: string;
@@ -101,34 +98,32 @@ async function seedMerchantRules(userId: string, catByName: Map<string, string>)
   }
 }
 
-function seedBudgetGroups(userId: string, catByName: Map<string, string>) {
-  if (typeof window === "undefined") return;
-  const key = BUDGET_KEY_PREFIX + userId;
-  const raw = window.localStorage.getItem(key);
-  if (raw) {
-    try { if ((JSON.parse(raw) as unknown[]).length > 0) return; } catch { /* fall through */ }
-  }
+async function seedBudgetGroups(userId: string, catByName: Map<string, string>) {
+  const { count, error } = await supabase
+    .from("budget_groups").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  if (error) throw error;
+  if ((count ?? 0) > 0) return;
 
   const cats = Array.from(catByName.entries()).map(([name, id]) => ({ id, name }));
-  const now = new Date().toISOString();
-  const groups: BudgetGroup[] = [];
+  const rows: Array<{
+    user_id: string; name: string; category_ids: string[];
+    amount: number; period: "monthly"; kind: "expense" | "savings";
+  }> = [];
   for (const s of STUDENT_SUGGESTIONS) {
     const ids = matchSuggestionCategories(s, cats);
     if (ids.length === 0) continue;
-    groups.push({
-      id: crypto.randomUUID(),
+    rows.push({
+      user_id: userId,
       name: s.name,
-      categoryIds: ids,
+      category_ids: ids,
       amount: s.defaultAmount,
       period: "monthly",
       kind: s.kind,
-      createdAt: now,
     });
   }
-
-  if (groups.length > 0) {
-    window.localStorage.setItem(key, JSON.stringify(groups));
-    window.dispatchEvent(new CustomEvent("ledger:budget-groups-changed"));
+  if (rows.length > 0) {
+    const { error: insErr } = await supabase.from("budget_groups").insert(rows);
+    if (insErr) throw insErr;
   }
 }
 
@@ -136,14 +131,12 @@ function seedBudgetGroups(userId: string, catByName: Map<string, string>) {
 export async function seedDefaultsForUser(userId: string): Promise<void> {
   if (!userId) return;
   const flagKey = SEED_FLAG_PREFIX + userId;
-  // The category / rule checks are themselves idempotent; the flag just
-  // avoids the extra roundtrips once we've done it in this browser.
   const alreadyLocal = typeof window !== "undefined" && window.localStorage.getItem(flagKey);
 
   try {
     const catByName = await seedCategories(userId);
     await seedMerchantRules(userId, catByName);
-    seedBudgetGroups(userId, catByName);
+    await seedBudgetGroups(userId, catByName);
     if (typeof window !== "undefined") window.localStorage.setItem(flagKey, "1");
   } catch (err) {
     if (!alreadyLocal) console.error("[seedDefaults] failed:", err);

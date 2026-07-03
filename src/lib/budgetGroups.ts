@@ -1,9 +1,8 @@
-// Multi-category budget "groups" persisted in localStorage.
-// The DB `budgets` table only supports a single category per row, so we
-// keep the richer grouping model client-side. This is intentional and keeps
-// the student-focused UX flexible without a schema migration.
+// Multi-category budget "groups" persisted in Supabase (`budget_groups`
+// table) so they follow the user across devices. A legacy localStorage
+// store is migrated on first load per-user, then cleared.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 
 export type BudgetPeriod = "weekly" | "monthly" | "termly";
@@ -19,29 +18,71 @@ export type BudgetGroup = {
   createdAt: string;
 };
 
-const KEY_PREFIX = "ledger:budget-groups:";
+const LEGACY_KEY_PREFIX = "ledger:budget-groups:";
 const EVT = "ledger:budget-groups-changed";
 
-function keyFor(userId: string | null) {
-  return KEY_PREFIX + (userId ?? "anon");
+type DbRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  category_ids: string[] | null;
+  amount: number;
+  period: BudgetPeriod;
+  kind: BudgetKind;
+  created_at: string;
+};
+
+function fromRow(r: DbRow): BudgetGroup {
+  return {
+    id: r.id,
+    name: r.name,
+    categoryIds: r.category_ids ?? [],
+    amount: Number(r.amount ?? 0),
+    period: r.period,
+    kind: r.kind,
+    createdAt: r.created_at,
+  };
 }
 
-function readAll(userId: string | null): BudgetGroup[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(keyFor(userId));
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
+async function fetchGroups(userId: string): Promise<BudgetGroup[]> {
+  const { data, error } = await supabase
+    .from("budget_groups").select("*").eq("user_id", userId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as DbRow[]).map(fromRow);
+}
+
+/** Move any legacy localStorage groups into the DB on first sync for this
+ *  user. Idempotent — only fires when the DB is empty and legacy data exists. */
+async function migrateLegacy(userId: string): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const key = LEGACY_KEY_PREFIX + userId;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return false;
+  let legacy: BudgetGroup[] = [];
+  try { legacy = JSON.parse(raw) ?? []; } catch { /* ignore */ }
+  if (!Array.isArray(legacy) || legacy.length === 0) {
+    window.localStorage.removeItem(key);
+    return false;
   }
-}
-
-function writeAll(userId: string | null, groups: BudgetGroup[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(keyFor(userId), JSON.stringify(groups));
-  window.dispatchEvent(new CustomEvent(EVT));
+  const { count } = await supabase
+    .from("budget_groups").select("id", { count: "exact", head: true }).eq("user_id", userId);
+  if ((count ?? 0) > 0) {
+    window.localStorage.removeItem(key);
+    return false;
+  }
+  const rows = legacy.map(g => ({
+    user_id: userId,
+    name: g.name,
+    category_ids: g.categoryIds ?? [],
+    amount: g.amount,
+    period: g.period,
+    kind: g.kind,
+  }));
+  const { error } = await supabase.from("budget_groups").insert(rows);
+  if (error) { console.error("[budget_groups] legacy migration failed", error); return false; }
+  window.localStorage.removeItem(key);
+  return true;
 }
 
 function useUserId() {
@@ -61,45 +102,84 @@ function useUserId() {
 
 export function useBudgetGroups() {
   const uid = useUserId();
-  const [groups, setGroups] = useState<BudgetGroup[]>(() => readAll(null));
+  const [groups, setGroups] = useState<BudgetGroup[]>([]);
+  const migratedRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => { setGroups(readAll(uid)); }, [uid]);
-  useEffect(() => {
-    const onChange = () => setGroups(readAll(uid));
-    window.addEventListener(EVT, onChange);
-    window.addEventListener("storage", onChange);
-    return () => {
-      window.removeEventListener(EVT, onChange);
-      window.removeEventListener("storage", onChange);
-    };
+  const refresh = useCallback(async () => {
+    if (!uid) { setGroups([]); return; }
+    try {
+      if (!migratedRef.current.has(uid)) {
+        migratedRef.current.add(uid);
+        await migrateLegacy(uid);
+      }
+      setGroups(await fetchGroups(uid));
+    } catch (err) {
+      console.error("[budget_groups] fetch failed", err);
+    }
   }, [uid]);
 
-  const upsert = useCallback((g: Omit<BudgetGroup, "id" | "createdAt"> & { id?: string }) => {
-    const now = new Date().toISOString();
-    const current = readAll(uid);
-    if (g.id) {
-      const next = current.map(x => x.id === g.id ? { ...x, ...g, id: g.id, createdAt: x.createdAt } as BudgetGroup : x);
-      writeAll(uid, next);
-      return g.id;
-    }
-    const id = crypto.randomUUID();
-    writeAll(uid, [...current, { ...g, id, createdAt: now }]);
-    return id;
+  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const onChange = () => { void refresh(); };
+    window.addEventListener(EVT, onChange);
+    return () => window.removeEventListener(EVT, onChange);
+  }, [refresh]);
+
+  const notify = () => window.dispatchEvent(new CustomEvent(EVT));
+
+  const upsert = useCallback((g: Omit<BudgetGroup, "id" | "createdAt"> & { id?: string }): string => {
+    if (!uid) return g.id ?? "";
+    const payload = {
+      user_id: uid,
+      name: g.name,
+      category_ids: g.categoryIds ?? [],
+      amount: g.amount,
+      period: g.period,
+      kind: g.kind,
+    };
+    const targetId = g.id ?? crypto.randomUUID();
+    void (async () => {
+      if (g.id) {
+        const { error } = await supabase.from("budget_groups").update(payload).eq("id", g.id).eq("user_id", uid);
+        if (error) console.error("[budget_groups] update failed", error);
+      } else {
+        const { error } = await supabase.from("budget_groups").insert({ ...payload, id: targetId });
+        if (error) console.error("[budget_groups] insert failed", error);
+      }
+      notify();
+    })();
+    return targetId;
   }, [uid]);
 
   const remove = useCallback((id: string) => {
-    writeAll(uid, readAll(uid).filter(g => g.id !== id));
+    if (!uid) return;
+    void (async () => {
+      const { error } = await supabase.from("budget_groups").delete().eq("id", id).eq("user_id", uid);
+      if (error) console.error("[budget_groups] delete failed", error);
+      notify();
+    })();
   }, [uid]);
 
   const addMany = useCallback((items: Array<Omit<BudgetGroup, "id" | "createdAt">>) => {
-    const now = new Date().toISOString();
-    const current = readAll(uid);
-    const next = [...current, ...items.map(g => ({ ...g, id: crypto.randomUUID(), createdAt: now }))];
-    writeAll(uid, next);
+    if (!uid || items.length === 0) return;
+    void (async () => {
+      const rows = items.map(g => ({
+        user_id: uid,
+        name: g.name,
+        category_ids: g.categoryIds ?? [],
+        amount: g.amount,
+        period: g.period,
+        kind: g.kind,
+      }));
+      const { error } = await supabase.from("budget_groups").insert(rows);
+      if (error) console.error("[budget_groups] insert many failed", error);
+      notify();
+    })();
   }, [uid]);
 
   return { groups, upsert, remove, addMany, userId: uid };
 }
+
 
 // ---- Category kind detection ---------------------------------------------
 
