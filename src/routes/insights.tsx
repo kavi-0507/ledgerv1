@@ -50,10 +50,10 @@ function InsightsPage() {
 
   return (
     <AppShell header={<h1 className="truncate text-display text-xl sm:text-2xl">Insights</h1>}>
-      <PageHeader eyebrow="Insights" title="Understand your habits." description="Scores and comparisons from your own spending." />
+      <PageHeader eyebrow="Insights" title="Understand your habits." description={active.data?.label ? `Comparing ${active.data.label}${active.data.isFallback ? " (latest month with data)" : ""} against the previous month.` : "Scores and comparisons from your own spending."} />
 
       <QueryBoundary
-        isLoading={data.isLoading || budgets.isLoading} isError={data.isError} error={data.error}
+        isLoading={active.isLoading || data.isLoading || budgets.isLoading} isError={data.isError} error={data.error}
         onRetry={() => { data.refetch(); budgets.refetch(); }}
         loading={<div className="space-y-6"><SkeletonChart /><div className="grid gap-4 md:grid-cols-3"><SkeletonStatCard /><SkeletonStatCard /><SkeletonStatCard /></div></div>}
       >
