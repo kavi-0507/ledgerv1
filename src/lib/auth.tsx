@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { seedDefaultsForUser } from "./seedDefaults";
 
 type AuthState = {
   session: Session | null;
@@ -17,16 +18,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const seededRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     let mounted = true;
+    const maybeSeed = (u: User | null) => {
+      if (!u || seededRef.current.has(u.id)) return;
+      seededRef.current.add(u.id);
+      void seedDefaultsForUser(u.id);
+    };
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
       setLoading(false);
+      maybeSeed(data.session?.user ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setLoading(false);
+      maybeSeed(s?.user ?? null);
     });
     return () => {
       mounted = false;
