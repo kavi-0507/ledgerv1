@@ -149,10 +149,11 @@ function BudgetCard({ budget, highlight, spent, onEdit }: { budget: DbBudget & {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{budget.scope} · {budget.period}</p>
-          <h3 className="mt-1 truncate text-display text-2xl">{budget.name || catName}</h3>
+          <h3 className="mt-1 truncate text-display text-2xl">{catName}</h3>
         </div>
         {pct > 80 && <StatusPill tone={pct > 100 ? "negative" : "warning"} dot>{pct > 100 ? "Over" : "Watch"}</StatusPill>}
       </div>
+
 
       <div className="flex items-baseline gap-2">
         <span data-numeric className="text-display text-4xl">{formatMoney(spent, { compact: true })}</span>
