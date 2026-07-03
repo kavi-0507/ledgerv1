@@ -61,15 +61,14 @@ function ProfileCard() {
   const profileQ = useProfile();
   const [displayName, setDisplayName] = useState<string>("");
   const [currency, setCurrency] = useState<string>("GBP");
+  const [hydrated, setHydrated] = useState(false);
 
-  // hydrate once
-  useState(() => {
-    if (profileQ.data) {
-      setDisplayName(profileQ.data.display_name ?? "");
-      setCurrency(profileQ.data.currency ?? "GBP");
-    }
-    return undefined;
-  });
+  if (profileQ.data && !hydrated) {
+    setDisplayName(profileQ.data.display_name ?? "");
+    setCurrency(profileQ.data.currency ?? "GBP");
+    setHydrated(true);
+  }
+
 
   const save = useMutation({
     mutationFn: async () => {
