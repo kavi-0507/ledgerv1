@@ -119,10 +119,13 @@ function ImportPage() {
       const userId = userData.user?.id;
       if (!userId) throw new Error("Not signed in");
 
-      // Existing dedupe hashes
-      const { data: existing } = await supabase.from("transactions").select("dedupe_hash,description,amount,occurred_on");
-      const existingHashes = new Set<string>((existing ?? []).map(r => (r as any).dedupe_hash).filter(Boolean));
+      // Existing rows for dedupe (compute hash client-side; column may not exist in DB)
+      const { data: existing } = await supabase.from("transactions").select("description,amount,occurred_on,direction");
       const existingFuzzy = (existing ?? []) as any[];
+      const existingHashes = new Set<string>();
+      for (const e of existingFuzzy) {
+        existingHashes.add(`${e.occurred_on}|${(e.description ?? "").toLowerCase()}|${Number(e.amount)}|${e.direction}`);
+      }
 
       const rules = rulesQ.data ?? [];
 
