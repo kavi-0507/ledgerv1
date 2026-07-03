@@ -65,7 +65,7 @@ export function useBudgets() {
     queryKey: ["budgets"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("budgets").select("*, categories(id,name,color)").order("created_at", { ascending: false });
+        .from("budgets").select("*, categories(id,name,color)").order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as (DbBudget & { categories?: { id: string; name: string; color: string | null } | null })[];
     },
