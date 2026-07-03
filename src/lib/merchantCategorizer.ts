@@ -84,6 +84,8 @@ const BUILTINS: BuiltIn[] = [
   // Transport
   { match: /\b(tfl|transport for london|oyster)\b/i, label: "Transport", categoryKeywords: ["transport", "travel", "commute"], confidence: 0.98 },
   { match: /\b(uber(?!\s*eats)|bolt\.eu|bolt\b|lyft|trainline|national rail|lner|gwr)\b/i, label: "Transport", categoryKeywords: ["transport", "travel"], confidence: 0.92 },
+  // Meal plan / tiffin services
+  { match: /\b(sakshis?|saakshis?|tiffin|meal ?plan)\b/i, label: "Meal plan", categoryKeywords: ["meal plan", "tiffin", "grocer", "eating"], confidence: 0.95 },
   // Groceries
   { match: /\b(tesco|sainsbury'?s?|lidl|aldi|co-?op|waitrose|morrisons|asda|iceland|marks ?& ?spencer|m&s food)\b/i, label: "Groceries", categoryKeywords: ["grocer", "supermarket"], confidence: 0.95 },
   // Food delivery / eating out
