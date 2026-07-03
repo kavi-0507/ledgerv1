@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string;
 
 export const supabase = createClient(url, key, {
   auth: {
@@ -15,6 +15,7 @@ export const supabase = createClient(url, key, {
 export type DbCategory = {
   id: string;
   user_id: string;
+  default_source_category_id?: string | null;
   name: string;
   slug: string | null;
   behaviour: string | null;
@@ -68,6 +69,7 @@ export type DbBudget = {
 export type DbMerchantRule = {
   id: string;
   user_id: string;
+  default_source_rule_id?: string | null;
   pattern: string;
   category_id: string | null;
   behaviour: string | null;
@@ -141,4 +143,6 @@ export type DbProfile = {
   id: string;
   currency: string | null;
   display_name: string | null;
+  defaults_seeded_at?: string | null;
+  defaults_source_user_id?: string | null;
 };

@@ -1,15 +1,10 @@
-// Seeds default categories, merchant rules, and budget groups for a user
-// the first time they sign in. Idempotent: each section only runs if the
-// corresponding store is empty for this user, so users can freely delete or
-// edit defaults without them reappearing.
-//
-// All three stores live in Supabase (categories, merchant_rules,
-// budget_groups) so defaults follow the user across devices.
+// Client-side safety net for default categories, merchant rules, and budget
+// groups. The database now owns the canonical template/backfill, but this
+// remains idempotent so a signed-in account is not left blank if setup data is
+// missing during local development or after an interrupted signup.
 
 import { supabase } from "./supabase";
 import { STUDENT_SUGGESTIONS, matchSuggestionCategories } from "./budgetGroups";
-
-const SEED_FLAG_PREFIX = "ledger:seeded:";
 
 type DefaultCategory = {
   name: string;
@@ -130,15 +125,11 @@ async function seedBudgetGroups(userId: string, catByName: Map<string, string>) 
 /** Idempotent per-user seed. Safe to call on every sign-in. */
 export async function seedDefaultsForUser(userId: string): Promise<void> {
   if (!userId) return;
-  const flagKey = SEED_FLAG_PREFIX + userId;
-  const alreadyLocal = typeof window !== "undefined" && window.localStorage.getItem(flagKey);
-
   try {
     const catByName = await seedCategories(userId);
     await seedMerchantRules(userId, catByName);
     await seedBudgetGroups(userId, catByName);
-    if (typeof window !== "undefined") window.localStorage.setItem(flagKey, "1");
   } catch (err) {
-    if (!alreadyLocal) console.error("[seedDefaults] failed:", err);
+    console.error("[seedDefaults] failed:", err);
   }
 }
