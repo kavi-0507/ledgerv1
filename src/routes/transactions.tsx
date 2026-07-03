@@ -242,7 +242,8 @@ function NewTransactionDialog() {
       <DialogContent>
         <DialogHeader><DialogTitle>New transaction</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Merchant</Label><Input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="Tesco" /></div>
+          <div className="space-y-1.5"><Label>Description</Label><Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional details" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>Amount</Label><Input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={occurredOn} onChange={e => setOccurredOn(e.target.value)} /></div>
