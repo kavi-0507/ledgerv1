@@ -30,6 +30,7 @@ function SettingsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <SessionCard />
         <ProfileCard />
+        <CategoriesCard />
         <MerchantRulesCard />
         <PrivacyCard />
       </div>
