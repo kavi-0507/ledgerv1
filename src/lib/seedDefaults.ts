@@ -11,9 +11,6 @@ import { STUDENT_SUGGESTIONS, matchSuggestionCategories } from "./budgetGroups";
 
 const SEED_FLAG_PREFIX = "ledger:seeded:";
 
-const SEED_FLAG_PREFIX = "ledger:seeded:";
-const BUDGET_KEY_PREFIX = "ledger:budget-groups:";
-
 type DefaultCategory = {
   name: string;
   behaviour: string | null;
