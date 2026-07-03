@@ -104,12 +104,17 @@ function AuthGate({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
   const router = useRouter();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
     if (loading) return;
-    if (!session && path !== "/auth") router.navigate({ to: "/auth" });
-    if (session && path === "/auth") router.navigate({ to: "/" });
-  }, [session, loading, path, router]);
+    if (!session && path !== "/auth") {
+      queryClient.cancelQueries();
+      queryClient.clear();
+      router.navigate({ to: "/auth", replace: true });
+    }
+    if (session && path === "/auth") router.navigate({ to: "/", replace: true });
+  }, [session, loading, path, router, queryClient]);
 
   if (loading) {
     return (
@@ -119,6 +124,7 @@ function AuthGate({ children }: { children: ReactNode }) {
     );
   }
   if (!session && path !== "/auth") return null;
+  if (session && path === "/auth") return null;
   return <>{children}</>;
 }
 
