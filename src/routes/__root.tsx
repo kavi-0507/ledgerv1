@@ -73,6 +73,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:description", content: "A calm, visual-first personal finance app." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Ledger — see your money clearly" },
+      { name: "twitter:description", content: "A calm, visual-first personal finance app." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1242622d-1d45-4ad3-8cf5-c0d322eda166/id-preview-07e9bc86--0e8e632d-1758-42eb-b36f-c1d4f1e77a2d.lovable.app-1783111109876.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1242622d-1d45-4ad3-8cf5-c0d322eda166/id-preview-07e9bc86--0e8e632d-1758-42eb-b36f-c1d4f1e77a2d.lovable.app-1783111109876.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
