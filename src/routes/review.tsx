@@ -11,7 +11,7 @@ import { QueryBoundary } from "@/components/ds/QueryBoundary";
 import { SkeletonRow } from "@/components/ds/Skeletons";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { useReminders, useWeeklyReviews } from "@/lib/db";
+import { useReminders, useWeeklyReviews, deriveReviewReason } from "@/lib/db";
 import { formatDate, formatDateShort, formatDateTime, formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/review")({ component: ReviewPage });
@@ -31,7 +31,7 @@ function ReviewPage() {
     queryKey: ["transactions", { needs_review: true }],
     queryFn: async () => {
       const { data, error } = await supabase.from("transactions")
-        .select("id,description,amount,direction,occurred_on,review_reason,categories(id,name)")
+        .select("id,description,amount,direction,occurred_on,needs_review,category_id,categories(id,name)")
         .eq("needs_review", true).order("occurred_on", { ascending: false }).limit(100);
       if (error) throw error;
       return data ?? [];
@@ -114,7 +114,7 @@ function ReviewPage() {
                       <p className="text-xs text-muted-foreground">
                         {formatDateShort(t.occurred_on)}{t.categories?.name ? ` · ${t.categories.name}` : ""}
                       </p>
-                      {t.review_reason && <p className="mt-1 text-sm text-warning">{t.review_reason}</p>}
+                      {(() => { const r = deriveReviewReason(t, t.categories?.name); return r ? <p className="mt-1 text-sm text-warning">{r}</p> : null; })()}
                     </div>
                     <div className="text-right">
                       <p data-numeric className={t.direction === "in" ? "text-positive" : ""}>
