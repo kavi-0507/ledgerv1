@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { LogOut, Plus, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { LogOut, Plus, ShieldCheck, Tag, Trash2, UserRound } from "lucide-react";
 
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
