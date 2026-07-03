@@ -142,7 +142,7 @@ function ImportPage() {
         }
         const direction: "in" | "out" = amt >= 0 ? (r["debit"] ? "out" : "in") : "out";
         const abs = Math.abs(amt);
-        const hash = await sha256(`${userId}|${occurred_on}|${desc.trim().toLowerCase()}|${abs.toFixed(2)}|${direction}`);
+        const hash = `${occurred_on}|${desc.trim().toLowerCase()}|${abs}|${direction}`;
         // rule match
         let category_id: string | null = null;
         for (const rule of rules) {
