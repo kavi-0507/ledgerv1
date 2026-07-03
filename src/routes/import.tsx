@@ -13,7 +13,7 @@ import { SkeletonRow } from "@/components/ds/Skeletons";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
-import { useImports, useMerchantRules, useCategories } from "@/lib/db";
+import { useImports, useMerchantRules, useCategories, ensureDefaultAccountId } from "@/lib/db";
 import { formatDateTime, humanize } from "@/lib/format";
 
 export const Route = createFileRoute("/import")({ component: ImportPage });
@@ -23,7 +23,7 @@ type ParsedRow = {
   description: string;
   amount: number;
   direction: "in" | "out";
-  dedupe_hash: string;
+  external_hash: string;
   category_id: string | null;
   raw: Record<string, string>;
   reason?: string;
@@ -137,7 +137,7 @@ function ImportPage() {
         const occurred_on = normalizeDate(dateRaw);
         const amt = Number(amtStr.replace(/[,£$€\s]/g, ""));
         if (!occurred_on || !desc || !Number.isFinite(amt) || amt === 0) {
-          parsed.push({ occurred_on: dateRaw, description: desc, amount: amt, direction: "out", dedupe_hash: "", category_id: null, raw: r, reason: "Missing date, description or amount" });
+          parsed.push({ occurred_on: dateRaw, description: desc, amount: amt, direction: "out", external_hash: "", category_id: null, raw: r, reason: "Missing date, description or amount" });
           continue;
         }
         const direction: "in" | "out" = amt >= 0 ? (r["debit"] ? "out" : "in") : "out";
@@ -153,7 +153,7 @@ function ImportPage() {
             if (desc.toLowerCase().includes(rule.pattern.toLowerCase())) { category_id = rule.category_id ?? null; break; }
           }
         }
-        parsed.push({ occurred_on, description: desc.trim(), amount: abs, direction, dedupe_hash: hash, category_id, raw: r });
+        parsed.push({ occurred_on, description: desc.trim(), amount: abs, direction, external_hash: hash, category_id, raw: r });
       }
 
       const invalid = parsed.filter(p => p.reason);
@@ -163,7 +163,7 @@ function ImportPage() {
       const news: ParsedRow[] = [];
       const seenInBatch = new Set<string>();
       for (const p of valid) {
-        if (existingHashes.has(p.dedupe_hash) || seenInBatch.has(p.dedupe_hash)) {
+        if (existingHashes.has(p.external_hash) || seenInBatch.has(p.external_hash)) {
           exact.push(p);
         } else {
           // fuzzy: same amount+date within 3 days
@@ -171,7 +171,7 @@ function ImportPage() {
             Math.abs(new Date(x.occurred_on).getTime() - new Date(p.occurred_on).getTime()) < 3 * 86400_000);
           if (near) possible.push(p);
           else news.push(p);
-          seenInBatch.add(p.dedupe_hash);
+          seenInBatch.add(p.external_hash);
         }
       }
 
