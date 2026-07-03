@@ -3,13 +3,13 @@
 // corresponding store is empty for this user, so users can freely delete or
 // edit defaults without them reappearing.
 //
-// Categories + merchant rules are stored in Supabase (per-account).
-// Budget groups still live in localStorage — see budgetGroups.ts — so those
-// defaults are seeded into the same store keyed by user id.
+// All three stores live in Supabase (categories, merchant_rules,
+// budget_groups) so defaults follow the user across devices.
 
 import { supabase } from "./supabase";
-import type { BudgetGroup } from "./budgetGroups";
 import { STUDENT_SUGGESTIONS, matchSuggestionCategories } from "./budgetGroups";
+
+const SEED_FLAG_PREFIX = "ledger:seeded:";
 
 const SEED_FLAG_PREFIX = "ledger:seeded:";
 const BUDGET_KEY_PREFIX = "ledger:budget-groups:";
