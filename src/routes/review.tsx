@@ -10,227 +10,149 @@ import { EmptyState } from "@/components/ds/EmptyState";
 import { QueryBoundary } from "@/components/ds/QueryBoundary";
 import { SkeletonRow } from "@/components/ds/Skeletons";
 import { Button } from "@/components/ui/button";
-import { api, toQuery } from "@/lib/api";
-import type { Reminder, TransactionsPage, WeeklyReview } from "@/lib/types";
-import { formatDate, formatDateShort, formatDateTime, formatMoney, humanize, toNumber } from "@/lib/format";
+import { supabase } from "@/lib/supabase";
+import { useReminders, useWeeklyReviews } from "@/lib/db";
+import { formatDate, formatDateShort, formatDateTime, formatMoney } from "@/lib/format";
 
-export const Route = createFileRoute("/review")({
-  component: ReviewPage,
-});
+export const Route = createFileRoute("/review")({ component: ReviewPage });
+
+function startOfWeek(): string {
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun
+  const diff = (day + 6) % 7; // to Monday
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
 
 function ReviewPage() {
   const qc = useQueryClient();
 
   const unresolvedQ = useQuery({
-    queryKey: ["transactions", { review_status: "needs_review", page: 1 }],
-    queryFn: () =>
-      api.get<TransactionsPage>(
-        `/transactions${toQuery({ review_status: "needs_review", page: 1, page_size: 50 })}`,
-      ),
-    retry: 1,
+    queryKey: ["transactions", { needs_review: true }],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("transactions")
+        .select("id,description,amount,direction,occurred_on,review_reason,categories(id,name)")
+        .eq("needs_review", true).order("occurred_on", { ascending: false }).limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
-  const remindersQ = useQuery({
-    queryKey: ["reminders"],
-    queryFn: () => api.get<{ items?: Reminder[]; reminders?: Reminder[] } | Reminder[]>("/reminders"),
-    retry: 1,
-  });
-  const weeklyQ = useQuery({
-    queryKey: ["weekly-review"],
-    queryFn: () => api.get<WeeklyReview>("/weekly-review"),
-    retry: 1,
-  });
-
-  const unresolved =
-    unresolvedQ.data?.items ??
-    unresolvedQ.data?.transactions ??
-    unresolvedQ.data?.results ??
-    [];
-  const reminders: Reminder[] = Array.isArray(remindersQ.data)
-    ? remindersQ.data
-    : ((remindersQ.data as { items?: Reminder[]; reminders?: Reminder[] } | undefined)?.items ??
-       (remindersQ.data as { items?: Reminder[]; reminders?: Reminder[] } | undefined)?.reminders ??
-       []);
+  const remindersQ = useReminders();
+  const weeklyQ = useWeeklyReviews();
 
   const dismissM = useMutation({
-    mutationFn: (id: number) => api.post(`/reminders/${id}/dismiss`),
-    onSuccess: () => {
-      toast.success("Reminder dismissed");
-      qc.invalidateQueries({ queryKey: ["reminders"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("reminders").update({ state: "dismissed" }).eq("id", id);
+      if (error) throw error;
     },
-    onError: (e: Error) => toast.error("Couldn't dismiss", { description: e.message }),
+    onSuccess: () => { toast.success("Reminder dismissed"); qc.invalidateQueries({ queryKey: ["reminders"] }); },
+    onError: (e: Error) => toast.error(e.message),
   });
   const snoozeM = useMutation({
-    mutationFn: (id: number) => api.post(`/reminders/${id}/snooze`, { minutes: 60 }),
-    onSuccess: () => {
-      toast.success("Snoozed for 1 hour");
-      qc.invalidateQueries({ queryKey: ["reminders"] });
+    mutationFn: async (id: string) => {
+      const due = new Date(Date.now() + 60 * 60_000).toISOString();
+      const { error } = await supabase.from("reminders").update({ state: "snoozed", due_at: due }).eq("id", id);
+      if (error) throw error;
     },
-    onError: (e: Error) => toast.error("Couldn't snooze", { description: e.message }),
+    onSuccess: () => { toast.success("Snoozed for 1 hour"); qc.invalidateQueries({ queryKey: ["reminders"] }); },
+    onError: (e: Error) => toast.error(e.message),
   });
+
+  const currentWeek = (weeklyQ.data ?? []).find(w => w.state === "open");
+  const completedWeeks = (weeklyQ.data ?? []).filter(w => w.state === "completed");
 
   const completeM = useMutation({
-    mutationFn: () => api.post("/weekly-review/complete"),
-    onSuccess: () => {
-      toast.success("Weekly review complete");
-      qc.invalidateQueries({ queryKey: ["weekly-review"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user!.id;
+      if (currentWeek) {
+        const { error } = await supabase.from("weekly_reviews").update({
+          state: "completed", completed_at: new Date().toISOString(),
+        }).eq("id", currentWeek.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("weekly_reviews").insert({
+          user_id: userId, week_start: startOfWeek(), state: "completed", completed_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+      }
     },
-    onError: (e: Error) => toast.error("Couldn't complete", { description: e.message }),
+    onSuccess: () => { toast.success("Weekly review complete"); qc.invalidateQueries({ queryKey: ["weekly_reviews"] }); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
+  const unresolved = unresolvedQ.data ?? [];
+  const reminders = (remindersQ.data ?? []).filter(r => r.state === "pending" || r.state === "snoozed");
+
   return (
-    <AppShell
-      header={
-        <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-            Review
-          </p>
-          <h1 className="truncate text-display text-xl sm:text-2xl">
-            Check in with your money
-          </h1>
-        </div>
-      }
-    >
-      <PageHeader
-        eyebrow="Review"
-        title="A calm weekly check-in."
-        description="Resolve flagged transactions, act on reminders, then close the loop."
-      />
+    <AppShell header={<h1 className="truncate text-display text-xl sm:text-2xl">Review</h1>}>
+      <PageHeader eyebrow="Review" title="A calm weekly check-in." description="Resolve flagged transactions, act on reminders, then close the loop." />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* LEFT: unresolved */}
         <section className="surface-card p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                Needs review
-              </p>
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Needs review</p>
               <h2 className="text-display text-2xl">Unresolved transactions</h2>
             </div>
-            <StatusPill tone={unresolved.length > 0 ? "warning" : "positive"} dot>
-              {unresolved.length}
-            </StatusPill>
+            <StatusPill tone={unresolved.length > 0 ? "warning" : "positive"} dot>{unresolved.length}</StatusPill>
           </div>
-
           <QueryBoundary
-            isLoading={unresolvedQ.isLoading}
-            isError={unresolvedQ.isError}
-            error={unresolvedQ.error}
+            isLoading={unresolvedQ.isLoading} isError={unresolvedQ.isError} error={unresolvedQ.error}
             onRetry={() => unresolvedQ.refetch()}
-            loading={
-              <>
-                <SkeletonRow />
-                <SkeletonRow />
-                <SkeletonRow />
-              </>
-            }
+            loading={<><SkeletonRow /><SkeletonRow /><SkeletonRow /></>}
           >
             {unresolved.length === 0 ? (
-              <EmptyState
-                icon={<CheckCircle2 className="h-5 w-5" />}
-                title="You're all caught up"
-                description="No transactions need your attention right now."
-              />
+              <EmptyState icon={<CheckCircle2 className="h-5 w-5" />} title="You're all caught up" description="No transactions need your attention right now." />
             ) : (
               <ul className="divide-y divide-border">
-                {unresolved.map((t) => {
-                  const amt = toNumber(t.amount) ?? 0;
-                  const isOut = t.direction === "out" || amt < 0;
-                  return (
-                    <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{t.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDateShort(t.occurred_on)}
-                          {t.category ? ` · ${humanize(t.category)}` : ""}
-                        </p>
-                        {t.review_reason && (
-                          <p className="mt-1 text-sm text-warning">
-                            {t.review_reason}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p
-                          data-numeric
-                          className={isOut ? "text-foreground" : "text-positive"}
-                        >
-                          {formatMoney(Math.abs(amt) * (isOut ? -1 : 1), { signed: true })}
-                        </p>
-                        <Link to="/transactions">
-                          <Button size="sm" variant="ghost" className="mt-1">
-                            Resolve
-                          </Button>
-                        </Link>
-                      </div>
-                    </li>
-                  );
-                })}
+                {unresolved.map((t: any) => (
+                  <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{t.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateShort(t.occurred_on)}{t.categories?.name ? ` · ${t.categories.name}` : ""}
+                      </p>
+                      {t.review_reason && <p className="mt-1 text-sm text-warning">{t.review_reason}</p>}
+                    </div>
+                    <div className="text-right">
+                      <p data-numeric className={t.direction === "in" ? "text-positive" : ""}>
+                        {t.direction === "in" ? "+" : "−"}{formatMoney(t.amount)}
+                      </p>
+                      <Link to="/transactions"><Button size="sm" variant="ghost" className="mt-1">Resolve</Button></Link>
+                    </div>
+                  </li>
+                ))}
               </ul>
             )}
           </QueryBoundary>
         </section>
 
-        {/* RIGHT: reminders + weekly review */}
         <aside className="space-y-6">
           <div className="surface-card p-5 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Reminders
-                </p>
+                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Reminders</p>
                 <h2 className="text-display text-2xl">Active</h2>
               </div>
               <Bell className="h-5 w-5 text-muted-foreground" />
             </div>
             <QueryBoundary
-              isLoading={remindersQ.isLoading}
-              isError={remindersQ.isError}
-              error={remindersQ.error}
-              onRetry={() => remindersQ.refetch()}
-              loading={<><SkeletonRow /><SkeletonRow /></>}
+              isLoading={remindersQ.isLoading} isError={remindersQ.isError} error={remindersQ.error}
+              onRetry={() => remindersQ.refetch()} loading={<><SkeletonRow /><SkeletonRow /></>}
             >
               {reminders.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No active reminders.
-                </p>
+                <p className="text-sm text-muted-foreground">No active reminders.</p>
               ) : (
                 <ul className="space-y-3">
-                  {reminders.map((r) => (
-                    <li
-                      key={r.id}
-                      className="rounded-lg border border-border bg-muted/30 p-3"
-                    >
-                      <p className="font-medium">{r.title ?? "Reminder"}</p>
-                      {r.description && (
-                        <p className="mt-0.5 text-sm text-muted-foreground">
-                          {r.description}
-                        </p>
-                      )}
-                      {r.due_at && (
-                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                          <ClockAlert className="h-3 w-3" />
-                          {formatDateTime(r.due_at)}
-                        </p>
-                      )}
+                  {reminders.map(r => (
+                    <li key={r.id} className="rounded-lg border border-border bg-muted/30 p-3">
+                      <p className="font-medium">{r.title}</p>
+                      {r.description && <p className="mt-0.5 text-sm text-muted-foreground">{r.description}</p>}
+                      {r.due_at && <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><ClockAlert className="h-3 w-3" />{formatDateTime(r.due_at)}</p>}
                       <div className="mt-3 flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={snoozeM.isPending}
-                          onClick={() => snoozeM.mutate(r.id)}
-                        >
-                          Snooze 1h
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={dismissM.isPending}
-                          onClick={() => dismissM.mutate(r.id)}
-                        >
-                          Dismiss
-                        </Button>
+                        <Button size="sm" variant="outline" disabled={snoozeM.isPending} onClick={() => snoozeM.mutate(r.id)}>Snooze 1h</Button>
+                        <Button size="sm" variant="ghost" disabled={dismissM.isPending} onClick={() => dismissM.mutate(r.id)}>Dismiss</Button>
                       </div>
                     </li>
                   ))}
@@ -241,65 +163,28 @@ function ReviewPage() {
 
           <div className="surface-elevated p-5 sm:p-6">
             <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-primary-soft text-primary">
-                <ClipboardCheck className="h-4 w-4" />
-              </span>
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-primary-soft text-primary"><ClipboardCheck className="h-4 w-4" /></span>
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Weekly review
-                </p>
+                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Weekly review</p>
                 <h2 className="text-display text-2xl">This week</h2>
               </div>
             </div>
-
-            <QueryBoundary
-              isLoading={weeklyQ.isLoading}
-              isError={weeklyQ.isError}
-              error={weeklyQ.error}
-              onRetry={() => weeklyQ.refetch()}
-              loading={<div className="mt-4"><SkeletonRow /></div>}
-            >
-              <div className="mt-4 space-y-3">
-                {weeklyQ.data?.current ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">
-                      {weeklyQ.data.current.period_start &&
-                        `${formatDate(weeklyQ.data.current.period_start)} → ${formatDate(weeklyQ.data.current.period_end)}`}
-                    </p>
-                    {weeklyQ.data.current.summary && (
-                      <p className="text-sm">{weeklyQ.data.current.summary}</p>
-                    )}
-                    <Button
-                      className="w-full"
-                      disabled={completeM.isPending}
-                      onClick={() => completeM.mutate()}
-                    >
-                      {completeM.isPending ? "Completing…" : "Mark review complete"}
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No open weekly review right now.
-                  </p>
-                )}
-
-                {(weeklyQ.data?.completed?.length ?? 0) > 0 && (
-                  <details className="mt-4">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      Past reviews ({weeklyQ.data!.completed!.length})
-                    </summary>
-                    <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                      {weeklyQ.data!.completed!.slice(0, 8).map((c, i) => (
-                        <li key={c.id ?? i}>
-                          {formatDate(c.completed_at)}
-                          {c.summary ? ` · ${c.summary}` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            </QueryBoundary>
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-muted-foreground">Week starting {formatDate(currentWeek?.week_start ?? startOfWeek())}.</p>
+              <Button className="w-full" disabled={completeM.isPending} onClick={() => completeM.mutate()}>
+                {completeM.isPending ? "Saving…" : currentWeek ? "Mark review complete" : "Complete this week"}
+              </Button>
+              {completedWeeks.length > 0 && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-medium">Past reviews ({completedWeeks.length})</summary>
+                  <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    {completedWeeks.slice(0, 8).map(c => (
+                      <li key={c.id}>{formatDate(c.completed_at ?? c.week_start)}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
           </div>
         </aside>
       </div>
