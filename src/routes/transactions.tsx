@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
-import { useCategories, useTransactions } from "@/lib/db";
+import { useCategories, useTransactions, ensureDefaultAccountId } from "@/lib/db";
 import { formatDateShort, formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/transactions")({ component: TransactionsPage });
@@ -100,10 +100,11 @@ function TransactionsPage() {
 }
 
 type Tx = {
-  id: string; occurred_on: string; description: string; amount: number; direction: string;
-  category_id: string | null; needs_review: boolean; review_reason: string | null;
+  id: string; occurred_on: string; description: string; merchant: string | null; amount: number; direction: string;
+  category_id: string | null; needs_review: boolean;
   categories?: { id: string; name: string; color: string | null } | null;
 };
+
 
 function TxRow({ t, categories }: { t: Tx; categories: any[] }) {
   const qc = useQueryClient();
@@ -213,10 +214,12 @@ function NewTransactionDialog() {
     mutationFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
+      const accountId = await ensureDefaultAccountId(userData.user.id);
       const m = merchant.trim();
       const d = description.trim();
       const { error } = await supabase.from("transactions").insert({
         user_id: userData.user.id,
+        account_id: accountId,
         merchant: m || null,
         description: d || m,
         amount: Number(amount),
@@ -227,6 +230,7 @@ function NewTransactionDialog() {
       });
       if (error) throw error;
     },
+
     onSuccess: () => {
       toast.success("Transaction added");
       setOpen(false); setMerchant(""); setDescription(""); setAmount(""); setCategoryId("");

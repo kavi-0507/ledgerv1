@@ -5,6 +5,31 @@ import type {
   DbReminder, DbRecommendation, DbImport, DbWeeklyReview, DbProfile,
 } from "./supabase";
 
+/** Return the current user's default account id, creating one if none exists. */
+export async function ensureDefaultAccountId(userId: string): Promise<string> {
+  const { data: existing, error: selErr } = await supabase
+    .from("accounts").select("id,is_active").eq("user_id", userId)
+    .order("created_at", { ascending: true });
+  if (selErr) throw selErr;
+  const active = (existing ?? []).find((a: any) => a.is_active !== false);
+  if (active) return active.id;
+  if (existing && existing.length > 0) return existing[0].id;
+  const { data: created, error: insErr } = await supabase
+    .from("accounts").insert({ user_id: userId, name: "Main Account", is_active: true })
+    .select("id").single();
+  if (insErr) throw insErr;
+  return created.id;
+}
+
+/** Derive a human review reason from a transaction row + its category. */
+export function deriveReviewReason(t: { needs_review?: boolean | null; category_id?: string | null }, categoryName?: string | null): string | null {
+  if (!t.needs_review) return null;
+  if (!t.category_id) return "Missing category";
+  if (categoryName && categoryName.toLowerCase() === "other") return "Other category";
+  return "Needs review";
+}
+
+
 // ---- Categories ----
 export function useCategories() {
   return useQuery({
