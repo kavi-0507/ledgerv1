@@ -27,18 +27,31 @@ export type DbTransaction = {
   id: string;
   user_id: string;
   account_id: string | null;
+  category_id: string | null;
   occurred_on: string;
-  description: string;
-  merchant: string | null;
   amount: number;
   direction: "in" | "out";
-  category_id: string | null;
-  needs_review: boolean;
-  review_reason: string | null;
+  description: string;
+  merchant: string | null;
   notes: string | null;
+  behaviour: string | null;
+  needs_review: boolean;
+  is_transfer: boolean | null;
   source: string | null;
+  import_id: string | null;
+  external_hash: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type DbAccount = {
+  id: string;
+  user_id: string;
+  name: string;
+  is_active: boolean | null;
   created_at: string;
 };
+
 
 export type DbBudget = {
   id: string;
