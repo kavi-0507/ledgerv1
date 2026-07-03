@@ -197,9 +197,10 @@ function ImportPage() {
       if (batchErr) throw batchErr;
 
       const toInsert = [...preview.new_rows, ...preview.possible_duplicates].map(r => ({
-        user_id: userId, occurred_on: r.occurred_on, description: r.description,
+        user_id: userId, occurred_on: r.occurred_on,
+        merchant: r.description, description: r.description,
         amount: r.amount, direction: r.direction, category_id: r.category_id,
-        dedupe_hash: r.dedupe_hash, import_batch_id: (batch as any).id,
+        source: "import",
       }));
       if (toInsert.length > 0) {
         const { error } = await supabase.from("transactions").insert(toInsert);
