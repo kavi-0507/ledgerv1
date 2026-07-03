@@ -17,7 +17,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useBudgets, useReminders, useRecommendations, startOfMonth, endOfMonth } from "@/lib/db";
 import { formatDateShort, formatMoney, humanize } from "@/lib/format";
 import { categoryIcon } from "@/lib/categories";
-import { StatusPill } from "@/components/ds/StatusPill";
 
 export const Route = createFileRoute("/")({ component: HomePage });
 
