@@ -111,21 +111,20 @@ function seedBudgetGroups(userId: string, catByName: Map<string, string>) {
 
   const cats = Array.from(catByName.entries()).map(([name, id]) => ({ id, name }));
   const now = new Date().toISOString();
-  const groups: BudgetGroup[] = STUDENT_SUGGESTIONS
-    .map(s => {
-      const ids = matchSuggestionCategories(s, cats);
-      if (ids.length === 0) return null;
-      return {
-        id: crypto.randomUUID(),
-        name: s.name,
-        categoryIds: ids,
-        amount: s.defaultAmount,
-        period: "monthly" as const,
-        kind: s.kind,
-        createdAt: now,
-      };
-    })
-    .filter((g): g is BudgetGroup => g !== null);
+  const groups: BudgetGroup[] = [];
+  for (const s of STUDENT_SUGGESTIONS) {
+    const ids = matchSuggestionCategories(s, cats);
+    if (ids.length === 0) continue;
+    groups.push({
+      id: crypto.randomUUID(),
+      name: s.name,
+      categoryIds: ids,
+      amount: s.defaultAmount,
+      period: "monthly",
+      kind: s.kind,
+      createdAt: now,
+    });
+  }
 
   if (groups.length > 0) {
     window.localStorage.setItem(key, JSON.stringify(groups));
