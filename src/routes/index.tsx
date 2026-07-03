@@ -43,8 +43,10 @@ function HomePage() {
   const reminders = useReminders();
   const recs = useRecommendations();
 
-  const loading = tx.isLoading || budgets.isLoading;
-  const error = tx.error ?? budgets.error;
+  const loading = active.isLoading || tx.isLoading || budgets.isLoading;
+  const error = active.error ?? tx.error ?? budgets.error;
+  const monthLabel = active.data?.label;
+  const isFallback = active.data?.isFallback;
 
   return (
     <AppShell
@@ -60,7 +62,7 @@ function HomePage() {
         </div>
       }
     >
-      <PageHeader eyebrow="Home" title="Good to see you." description="A calm summary of your spending, budgets and progress this month." />
+      <PageHeader eyebrow="Home" title="Good to see you." description={monthLabel ? `Showing ${monthLabel}${isFallback ? " (no activity yet this month)" : ""}.` : "A calm summary of your spending, budgets and progress this month."} />
       <QueryBoundary
         isLoading={loading}
         isError={!!error}
