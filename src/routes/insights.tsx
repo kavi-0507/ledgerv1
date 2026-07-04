@@ -588,11 +588,11 @@ function CarryForwardDialog({
   const snapshotMonths = useSnapshotMonths(userId);
   const [selected, setSelected] = useState<Set<MonthKey>>(new Set());
   const [busy, setBusy] = useState(false);
-
   // Reset selection when opened or source changes
-  useMemo(() => {
+  useEffect(() => {
     if (open) setSelected(new Set());
   }, [open, sourceMonth]);
+
 
   // Candidate targets: every month from sourceMonth+1 up to currentMonth.
   const targets: MonthKey[] = useMemo(() => {
