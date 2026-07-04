@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  ChevronLeft, ChevronRight, PieChart, Sparkles, TrendingDown, TrendingUp,
+  ChevronLeft, ChevronRight, CopyPlus, PieChart, Sparkles, TrendingDown, TrendingUp,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
   ResponsiveContainer, LineChart, Line, Legend,
 } from "recharts";
+import { toast } from "sonner";
 
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -19,14 +20,19 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCategories, useActiveMonth } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
-import { useBudgetGroups } from "@/lib/budgetGroups";
+import { useBudgetGroups, type BudgetGroup } from "@/lib/budgetGroups";
 import { computeHealth, scoreTone, type Tx as HealthTx } from "@/lib/budgetHealth";
 import {
-  useAvailableMonths, useMonthSnapshots, useAutoSnapshotCurrentMonth,
+  useAvailableMonths, useMonthSnapshots, useAutoSnapshotCurrentMonth, useSnapshotMonths,
+  applySnapshotToMonths, replaceLiveBudgets,
   monthStart, monthEnd, shiftMonth, monthLabel, monthShortLabel, type MonthKey,
 } from "@/lib/insightsMonths";
 import { z } from "zod";
@@ -91,6 +97,10 @@ function InsightsPage() {
 
   const loading = active.isLoading || cats.isLoading || trendTx.isLoading || snapshots.isLoading;
 
+  const currentMonth = monthStart(new Date().toISOString().slice(0, 10));
+  const sourceGroups: BudgetGroup[] = selectedMonth ? (snapshots.data?.[selectedMonth] ?? groups) : groups;
+  const [carryOpen, setCarryOpen] = useState(false);
+
   return (
     <AppShell header={<h1 className="truncate text-display text-xl sm:text-2xl">Insights</h1>}>
       <PageHeader
@@ -98,15 +108,23 @@ function InsightsPage() {
         title="Why am I okay — or not?"
         description={selectedMonth ? `Reviewing ${monthLabel(selectedMonth)}.` : "Insights from your own budgets and spending."}
         actions={selectedMonth && months.length > 0 ? (
-          <MonthPicker
-            selected={selectedMonth}
-            months={months}
-            canPrev={canPrev}
-            canNext={canNext}
-            onChange={setMonth}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <MonthPicker
+              selected={selectedMonth}
+              months={months}
+              canPrev={canPrev}
+              canNext={canNext}
+              onChange={setMonth}
+            />
+            {sourceGroups.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setCarryOpen(true)}>
+                <CopyPlus className="mr-1.5 h-4 w-4" />Carry forward…
+              </Button>
+            )}
+          </div>
         ) : null}
       />
+
 
       <QueryBoundary
         isLoading={loading}
@@ -132,6 +150,17 @@ function InsightsPage() {
           />
         ) : null}
       </QueryBoundary>
+
+      {selectedMonth && userId && (
+        <CarryForwardDialog
+          open={carryOpen}
+          onOpenChange={setCarryOpen}
+          sourceMonth={selectedMonth}
+          sourceGroups={sourceGroups}
+          currentMonth={currentMonth}
+          userId={userId}
+        />
+      )}
     </AppShell>
   );
 }
@@ -540,5 +569,140 @@ function MiniStat({ label, value, trailing, hint, tone }: {
       </div>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
+  );
+}
+
+// ---- Carry-forward dialog ------------------------------------------------
+
+function CarryForwardDialog({
+  open, onOpenChange, sourceMonth, sourceGroups, currentMonth, userId,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  sourceMonth: MonthKey;
+  sourceGroups: BudgetGroup[];
+  currentMonth: MonthKey;
+  userId: string;
+}) {
+  const qc = useQueryClient();
+  const snapshotMonths = useSnapshotMonths(userId);
+  const [selected, setSelected] = useState<Set<MonthKey>>(new Set());
+  const [busy, setBusy] = useState(false);
+  // Reset selection when opened or source changes
+  useEffect(() => {
+    if (open) setSelected(new Set());
+  }, [open, sourceMonth]);
+
+
+  // Candidate targets: every month from sourceMonth+1 up to currentMonth.
+  const targets: MonthKey[] = useMemo(() => {
+    if (sourceMonth >= currentMonth) return [];
+    const out: MonthKey[] = [];
+    let cur = shiftMonth(sourceMonth, 1);
+    while (cur <= currentMonth) {
+      out.push(cur);
+      cur = shiftMonth(cur, 1);
+    }
+    return out;
+  }, [sourceMonth, currentMonth]);
+
+  const snapshotSet = useMemo(
+    () => new Set(snapshotMonths.data ?? []),
+    [snapshotMonths.data],
+  );
+  const willOverwriteCount = Array.from(selected).filter(m => snapshotSet.has(m) || m === currentMonth).length;
+  const includesCurrent = selected.has(currentMonth);
+
+  const toggle = (m: MonthKey, on?: boolean) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      const shouldAdd = on ?? !next.has(m);
+      if (shouldAdd) next.add(m); else next.delete(m);
+      return next;
+    });
+  };
+
+  async function handleApply() {
+    if (selected.size === 0) return;
+    setBusy(true);
+    try {
+      const monthsList = Array.from(selected);
+      const pastMonths = monthsList.filter(m => m !== currentMonth);
+      await applySnapshotToMonths(userId, sourceGroups, pastMonths);
+      if (includesCurrent) {
+        await replaceLiveBudgets(userId, sourceGroups);
+      }
+      qc.invalidateQueries({ queryKey: ["budget_snapshots"] });
+      qc.invalidateQueries({ queryKey: ["budget_snapshot_months"] });
+      if (includesCurrent) window.dispatchEvent(new CustomEvent("ledger:budget-groups-changed"));
+      toast.success(`Copied ${sourceGroups.length} budget${sourceGroups.length === 1 ? "" : "s"} to ${monthsList.length} month${monthsList.length === 1 ? "" : "s"}`);
+      onOpenChange(false);
+    } catch (err) {
+      console.error("[carry-forward] failed", err);
+      toast.error("Couldn't carry these budgets forward. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Carry {monthLabel(sourceMonth)} budgets forward</DialogTitle>
+          <DialogDescription>
+            Copy this month's {sourceGroups.length} saved budget{sourceGroups.length === 1 ? "" : "s"} into the months you pick below. Existing snapshots and your live budgets are only replaced for the months you tick.
+          </DialogDescription>
+        </DialogHeader>
+
+        {targets.length === 0 ? (
+          <p className="rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+            No later months to carry into — this is already the current month.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setSelected(new Set(targets))}>Select all</Button>
+              <Button size="sm" variant="outline" onClick={() => setSelected(new Set(targets.filter(m => m !== currentMonth)))}>All past months</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
+            </div>
+            <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+              {targets.map(m => {
+                const hasSnap = snapshotSet.has(m);
+                const isCurrent = m === currentMonth;
+                const checked = selected.has(m);
+                return (
+                  <label key={m} className="flex cursor-pointer items-center gap-3 border-b border-border/60 p-3 last:border-b-0 hover:bg-muted/40">
+                    <Checkbox checked={checked} onCheckedChange={(v) => toggle(m, v === true)} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{monthLabel(m)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isCurrent
+                          ? "Current month — this also replaces your live budgets on the Budgets page."
+                          : hasSnap
+                            ? "Already has a saved snapshot — it will be overwritten."
+                            : "No snapshot yet — will be created."}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            {willOverwriteCount > 0 && (
+              <p className="text-xs text-warning">
+                {willOverwriteCount} of the selected month{willOverwriteCount === 1 ? "" : "s"} will overwrite existing data.
+              </p>
+            )}
+          </>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={handleApply} disabled={busy || selected.size === 0}>
+            {busy ? "Copying…" : `Copy to ${selected.size} month${selected.size === 1 ? "" : "s"}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
