@@ -110,15 +110,17 @@ function AuthGate({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { queryClient } = Route.useRouteContext();
 
+  const publicPath = path === "/auth" || path === "/forgot-password";
+
   useEffect(() => {
     if (loading) return;
-    if (!session && path !== "/auth") {
+    if (!session && !publicPath) {
       queryClient.cancelQueries();
       queryClient.clear();
       router.navigate({ to: "/auth", replace: true });
     }
     if (session && path === "/auth") router.navigate({ to: "/", replace: true });
-  }, [session, loading, path, router, queryClient]);
+  }, [session, loading, path, publicPath, router, queryClient]);
 
   if (loading) {
     return (
@@ -127,7 +129,7 @@ function AuthGate({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (!session && path !== "/auth") return null;
+  if (!session && !publicPath) return null;
   if (session && path === "/auth") return null;
   return <>{children}</>;
 }
