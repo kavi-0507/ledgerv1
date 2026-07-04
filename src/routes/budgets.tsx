@@ -587,3 +587,113 @@ function BudgetDialog({
     </Dialog>
   );
 }
+
+// ---- Carry from past-month snapshot --------------------------------------
+
+function CarryFromDialog({
+  open, onOpenChange, userId, categories,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  userId: string;
+  categories: CatLite[];
+}) {
+  const qc = useQueryClient();
+  const snapshotMonths = useSnapshotMonths(userId);
+  const [selectedMonth, setSelectedMonth] = useState<MonthKey | "">("");
+  const [busy, setBusy] = useState(false);
+
+  const monthOptions = snapshotMonths.data ?? [];
+
+  const previewQ = useQuery({
+    queryKey: ["budget_snapshot_preview", userId, selectedMonth],
+    enabled: !!selectedMonth,
+    queryFn: async (): Promise<BudgetGroup[]> => {
+      const { data, error } = await supabase
+        .from("budget_group_snapshots")
+        .select("groups").eq("user_id", userId).eq("month", selectedMonth).maybeSingle();
+      if (error) throw error;
+      return ((data?.groups ?? []) as BudgetGroup[]);
+    },
+  });
+
+  const preview = previewQ.data ?? [];
+  const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+
+  async function handleApply() {
+    if (!selectedMonth || preview.length === 0) return;
+    setBusy(true);
+    try {
+      await replaceLiveBudgets(userId, preview);
+      window.dispatchEvent(new CustomEvent("ledger:budget-groups-changed"));
+      qc.invalidateQueries({ queryKey: ["budget_snapshots"] });
+      qc.invalidateQueries({ queryKey: ["budget_snapshot_months"] });
+      toast.success(`Replaced live budgets with ${preview.length} from ${monthLabel(selectedMonth)}`);
+      onOpenChange(false);
+      setSelectedMonth("");
+    } catch (err) {
+      console.error("[carry-from] failed", err);
+      toast.error("Couldn't apply that month's budgets. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Carry forward from another month</DialogTitle>
+          <DialogDescription>
+            Replace your live budgets with the list saved for a past month. Snapshots for older months aren't changed — only your current live budgets are overwritten.
+          </DialogDescription>
+        </DialogHeader>
+
+        {monthOptions.length === 0 ? (
+          <p className="rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+            No saved past-month snapshots yet. Visit Insights on a month to freeze its budgets first.
+          </p>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label>Month to copy from</Label>
+              <Select value={selectedMonth} onValueChange={(v) => setSelectedMonth(v as MonthKey)}>
+                <SelectTrigger><SelectValue placeholder="Pick a month" /></SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(m => <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedMonth && (
+              <div className="max-h-64 overflow-y-auto rounded-md border border-border">
+                {preview.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">That month had no budgets saved.</p>
+                ) : preview.map(g => (
+                  <div key={g.id} className="flex items-center justify-between gap-3 border-b border-border/60 p-3 last:border-b-0">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{g.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {g.categoryIds.map(id => catById.get(id)?.name).filter(Boolean).join(", ") || "No categories linked"}
+                      </p>
+                    </div>
+                    <span data-numeric className="text-sm">{formatMoney(Number(g.amount || 0), { compact: true })}<span className="text-muted-foreground"> /{g.period}</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-warning">
+              This replaces every budget in your live list. Past-month snapshots stay untouched.
+            </p>
+          </>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={handleApply} disabled={busy || !selectedMonth || preview.length === 0}>
+            {busy ? "Applying…" : "Replace live budgets"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
