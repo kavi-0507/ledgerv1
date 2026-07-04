@@ -50,7 +50,14 @@ function AuthPage() {
             <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              {mode === "signin" && (
+                <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground">
+                  Forgot password?
+                </Link>
+              )}
+            </div>
             <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "signin" ? "current-password" : "new-password"} />
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
