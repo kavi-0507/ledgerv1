@@ -413,13 +413,13 @@ function Body({ selectedMonth, trendMonths, allTx, snapshots, categories }: {
           <div className="surface-card p-4">
             <ResponsiveContainer width="100%" height={Math.max(240, budgetVsActual.length * 44)}>
               <BarChart data={budgetVsActual} layout="vertical" margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis type="number" tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis type="category" dataKey="name" width={140} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis type="number" tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="var(--muted-foreground)" fontSize={12} />
+                <YAxis type="category" dataKey="name" width={140} stroke="var(--muted-foreground)" fontSize={12} />
+                <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "var(--card)", border: "1px solid var(--border)" }} />
                 <Legend />
-                <Bar dataKey="Budget" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="Spent" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="Budget" fill="var(--muted-foreground)" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="Spent" fill="var(--primary)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -497,12 +497,12 @@ function Body({ selectedMonth, trendMonths, allTx, snapshots, categories }: {
           <TrendCard title="Total monthly spending">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={trendSeries} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
-                <Line type="monotone" dataKey="spending" stroke="hsl(var(--primary))" strokeWidth={2} dot />
-                <Line type="monotone" dataKey="budget" stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" strokeWidth={2} dot={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={12} />
+                <YAxis tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="var(--muted-foreground)" fontSize={12} />
+                <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "var(--card)", border: "1px solid var(--border)" }} />
+                <Line type="monotone" dataKey="spending" stroke="var(--primary)" strokeWidth={2} dot />
+                <Line type="monotone" dataKey="budget" stroke="var(--muted-foreground)" strokeDasharray="4 4" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </TrendCard>
@@ -510,11 +510,11 @@ function Body({ selectedMonth, trendMonths, allTx, snapshots, categories }: {
           <TrendCard title="Budget score over time">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={trendSeries} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis domain={[0, 100]} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <ReTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
-                <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot connectNulls />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={12} />
+                <YAxis domain={[0, 100]} stroke="var(--muted-foreground)" fontSize={12} />
+                <ReTooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)" }} />
+                <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={2} dot connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </TrendCard>
@@ -523,14 +523,14 @@ function Body({ selectedMonth, trendMonths, allTx, snapshots, categories }: {
             <TrendCard title="Top category spending" className="lg:col-span-2">
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={topCatTrend.series} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={12} />
+                  <YAxis tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="var(--muted-foreground)" fontSize={12} />
+                  <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "var(--card)", border: "1px solid var(--border)" }} />
                   <Legend />
                   {topCatTrend.catNames.map((n, i) => (
                     <Line key={n} type="monotone" dataKey={n}
-                      stroke={["hsl(var(--primary))", "hsl(var(--warning))", "hsl(var(--positive))"][i] ?? "hsl(var(--muted-foreground))"}
+                      stroke={["var(--primary)", "var(--warning)", "var(--positive)"][i] ?? "var(--muted-foreground)"}
                       strokeWidth={2} dot />
                   ))}
                 </LineChart>
