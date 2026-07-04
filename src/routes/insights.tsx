@@ -150,6 +150,17 @@ function InsightsPage() {
           />
         ) : null}
       </QueryBoundary>
+
+      {selectedMonth && userId && (
+        <CarryForwardDialog
+          open={carryOpen}
+          onOpenChange={setCarryOpen}
+          sourceMonth={selectedMonth}
+          sourceGroups={sourceGroups}
+          currentMonth={currentMonth}
+          userId={userId}
+        />
+      )}
     </AppShell>
   );
 }
