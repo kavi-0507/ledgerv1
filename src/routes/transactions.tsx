@@ -279,12 +279,15 @@ function TxRow({
   };
   return (
     <>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         className={cn(
-          "flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-muted/40 interactive",
+          "flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-muted/40 interactive cursor-pointer",
           selectMode && selected && "bg-muted/60",
         )}
         onClick={handleClick}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(); } }}
       >
         {selectMode && (
           <span onClick={(e) => e.stopPropagation()} className="shrink-0">
@@ -318,7 +321,7 @@ function TxRow({
         <span data-numeric className={`text-sm font-medium ${t.direction === "in" ? "text-positive" : ""}`}>
           {t.direction === "in" ? "+" : "−"}{formatMoney(t.amount)}
         </span>
-      </button>
+      </div>
       {open && <TransactionDialog mode="edit" tx={t} categories={categories} onClose={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["transactions"] }); }} />}
     </>
   );
