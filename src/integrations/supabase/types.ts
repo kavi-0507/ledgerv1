@@ -38,6 +38,33 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_group_snapshots: {
+        Row: {
+          created_at: string
+          groups: Json
+          id: string
+          month: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          groups?: Json
+          id?: string
+          month: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          groups?: Json
+          id?: string
+          month?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       budget_groups: {
         Row: {
           amount: number
