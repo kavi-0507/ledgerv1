@@ -110,7 +110,8 @@ function AuthGate({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { queryClient } = Route.useRouteContext();
 
-  const publicPath = path === "/auth" || path === "/forgot-password";
+  const publicPath =
+    path === "/auth" || path === "/forgot-password" || path === "/reset-password";
 
   useEffect(() => {
     if (loading) return;
