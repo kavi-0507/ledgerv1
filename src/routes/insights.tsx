@@ -33,7 +33,7 @@ import { computeHealth, scoreTone, type Tx as HealthTx } from "@/lib/budgetHealt
 import {
   useAvailableMonths, useMonthSnapshots, useAutoSnapshotCurrentMonth, useSnapshotMonths,
   applySnapshotToMonths, replaceLiveBudgets,
-  monthStart, monthEnd, shiftMonth, monthLabel, type MonthKey,
+  monthStart, monthEnd, shiftMonth, monthLabel, monthShortLabel, type MonthKey,
 } from "@/lib/insightsMonths";
 import { z } from "zod";
 
