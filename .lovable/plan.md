@@ -1,32 +1,33 @@
-## Goal
 
-Fix the broken forgot-password flow so clicking the email link takes the user to a dedicated page where they set a new password (twice), then returns them to sign in.
+## Problem
 
-## Why the current flow fails
+Supabase's recovery link redirects to the site's default URL (usually `/`), not to `/reset-password`. When you click the email link:
+1. Supabase JS parses the recovery tokens in the URL hash
+2. Fires a `PASSWORD_RECOVERY` auth event
+3. Signs you in with a temporary recovery session
+4. But since you land on `/`, the `/reset-password` page never mounts and never sees the event — so nothing happens and you just look "signed in"
 
-Supabase's default recovery email contains a link, not a code. The link creates a session and, since no `/reset-password` page exists, the user just lands on the home page already signed in — no password change ever happens.
+Also, "can't log in now" is expected: you never actually set a new password. The previous recovery session has since expired. Once the flow is fixed, request a fresh reset link and it will work.
 
-## Changes
+## Fix
 
-### 1. Simplify `src/routes/forgot-password.tsx`
-Remove the two-stage code/OTP logic. Keep only stage 1:
-- Email input → `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${window.location.origin}/reset-password })`
-- Show a confirmation message: "Check your email for a reset link."
-- Link back to `/auth`.
+Intercept `PASSWORD_RECOVERY` globally so no matter where the recovery link drops you, you get sent to `/reset-password` immediately.
 
-### 2. Create `src/routes/reset-password.tsx` (new)
-- On mount, listen for `supabase.auth.onAuthStateChange`; when event is `PASSWORD_RECOVERY`, enable the form. Also allow rendering immediately if a session already exists (link click hydrates the session).
-- If no recovery session is detected after a short delay, show an error with a link back to `/forgot-password`.
-- Form: New password + Confirm new password (min 6 chars, must match).
-- On submit: `supabase.auth.updateUser({ password })` → `supabase.auth.signOut()` → toast success → `navigate({ to: "/auth" })`.
+### 1. `src/lib/auth.tsx`
 
-### 3. Update `src/routes/__root.tsx`
-Add `/reset-password` to the `publicPath` check in `AuthGate` so the recovery session doesn't bounce the user away before they can set the new password.
+In the `onAuthStateChange` handler, when the event is `PASSWORD_RECOVERY`, set a module-level flag `isRecovering = true` and use `window.location.replace('/reset-password' + window.location.hash)` if not already on that path. Using `window.location` (not the router) guarantees the redirect wins over any other navigation racing with it (e.g. AuthGate sending an authenticated user to `/`).
 
-## Files
+### 2. `src/routes/__root.tsx` (AuthGate)
 
-- edit `src/routes/forgot-password.tsx` (simplify to email-only request stage)
-- create `src/routes/reset-password.tsx`
-- edit `src/routes/__root.tsx` (add `/reset-password` to public paths)
+- Keep `/reset-password` in `publicPath`.
+- Add a guard: if `window.location.hash` contains `type=recovery` OR the pathname is `/reset-password`, do NOT run the "session && path === '/auth' → redirect to /" branch and do NOT redirect authenticated users off `/reset-password`. This prevents the race where the recovery session triggers a redirect to `/` before the recovery event handler fires.
 
-No backend, email domain, or DNS setup required — uses Supabase's default recovery email.
+### 3. `src/routes/reset-password.tsx`
+
+No functional change needed — it already listens for `PASSWORD_RECOVERY` and accepts an existing session. Just confirm it doesn't call `signOut` before `updateUser` completes (it doesn't).
+
+## Notes for the user
+
+- After this fix ships, request a **new** reset link. The old one is single-use and likely expired.
+- If you truly can't get in and reset also fails, tell me — I can wipe your account server-side and you can sign up fresh.
+- No email domain, DNS, or backend changes required.
