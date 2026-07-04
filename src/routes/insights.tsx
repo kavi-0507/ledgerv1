@@ -1,6 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { PieChart, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, PieChart, Sparkles, TrendingDown, TrendingUp,
+} from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
+  ResponsiveContainer, LineChart, Line, Legend,
+} from "recharts";
 
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -10,152 +16,294 @@ import { QueryBoundary } from "@/components/ds/QueryBoundary";
 import { ProgressBar } from "@/components/ds/ProgressBar";
 import { SkeletonChart, SkeletonStatCard } from "@/components/ds/Skeletons";
 import { Button } from "@/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { useCategories, useActiveMonth } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
 import { useBudgetGroups } from "@/lib/budgetGroups";
 import { computeHealth, scoreTone, type Tx as HealthTx } from "@/lib/budgetHealth";
+import {
+  useAvailableMonths, useMonthSnapshots, useAutoSnapshotCurrentMonth,
+  monthStart, monthEnd, shiftMonth, monthLabel, monthShortLabel, type MonthKey,
+} from "@/lib/insightsMonths";
+import { z } from "zod";
 
-export const Route = createFileRoute("/insights")({ component: InsightsPage });
+const searchSchema = z.object({ month: z.string().optional() });
 
-function shiftMonth(iso: string, delta: number): string {
-  const d = new Date(iso);
-  d.setMonth(d.getMonth() + delta);
-  return d.toISOString().slice(0, 10);
-}
+export const Route = createFileRoute("/insights")({
+  component: InsightsPage,
+  validateSearch: (s) => searchSchema.parse(s),
+});
 
-function useMonthPair(from: string | undefined, to: string | undefined) {
-  const prevFrom = from ? shiftMonth(from, -1) : undefined;
-  const prevTo = to ? shiftMonth(to, -1) : undefined;
-  return useQuery({
-    queryKey: ["insights_tx", from, to],
-    enabled: !!from && !!to,
-    queryFn: async () => {
-      const [cur, prev] = await Promise.all([
-        supabase.from("transactions").select("amount,category_id,direction,is_transfer,occurred_on,needs_review").gte("occurred_on", from!).lte("occurred_on", to!),
-        supabase.from("transactions").select("amount,category_id,direction,is_transfer,occurred_on,needs_review").gte("occurred_on", prevFrom!).lte("occurred_on", prevTo!),
-      ]);
-      if (cur.error) throw cur.error;
-      if (prev.error) throw prev.error;
-      return { current: (cur.data ?? []) as HealthTx[], previous: (prev.data ?? []) as HealthTx[], prevFrom: prevFrom!, prevTo: prevTo! };
-    },
-  });
-}
+const TREND_WINDOW = 6;
 
 function InsightsPage() {
+  const { month: monthParam } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const active = useActiveMonth();
-  const tx = useMonthPair(active.data?.from, active.data?.to);
   const cats = useCategories();
-  const { groups } = useBudgetGroups();
+  const { groups, userId } = useBudgetGroups();
+  const availableMonths = useAvailableMonths();
 
-  const loading = active.isLoading || tx.isLoading || cats.isLoading;
+  useAutoSnapshotCurrentMonth(userId, groups);
+
+  // Selected month falls back to the active (latest data) month.
+  const selectedMonth: MonthKey | undefined = monthParam
+    ? monthStart(monthParam)
+    : active.data?.from ? monthStart(active.data.from) : undefined;
+
+  const setMonth = (m: MonthKey) => {
+    navigate({ search: () => ({ month: m }), replace: true });
+  };
+
+  const months = availableMonths.data ?? [];
+  const canPrev = !!selectedMonth && months.length > 0 && selectedMonth > months[months.length - 1];
+  const canNext = !!selectedMonth && months.length > 0 && selectedMonth < months[0];
+
+  // Trend window: previous (TREND_WINDOW-1) months + selected month.
+  const trendMonths: MonthKey[] = useMemo(() => {
+    if (!selectedMonth) return [];
+    const arr: MonthKey[] = [];
+    for (let i = TREND_WINDOW - 1; i >= 0; i--) arr.push(shiftMonth(selectedMonth, -i));
+    return arr;
+  }, [selectedMonth]);
+
+  const snapshots = useMonthSnapshots(userId, trendMonths, groups);
+
+  // Fetch transactions for the whole trend window in one query.
+  const trendTx = useQuery({
+    queryKey: ["insights_trend_tx", trendMonths[0], trendMonths[trendMonths.length - 1]],
+    enabled: trendMonths.length > 0,
+    queryFn: async (): Promise<HealthTx[]> => {
+      const from = trendMonths[0];
+      const to = monthEnd(trendMonths[trendMonths.length - 1]);
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("amount,category_id,direction,is_transfer,occurred_on,needs_review")
+        .gte("occurred_on", from).lte("occurred_on", to);
+      if (error) throw error;
+      return (data ?? []) as HealthTx[];
+    },
+  });
+
+  const loading = active.isLoading || cats.isLoading || trendTx.isLoading || snapshots.isLoading;
 
   return (
     <AppShell header={<h1 className="truncate text-display text-xl sm:text-2xl">Insights</h1>}>
       <PageHeader
         eyebrow="Insights"
         title="Why am I okay — or not?"
-        description={active.data?.label ? `Comparing ${active.data.label}${active.data.isFallback ? " (latest month with data)" : ""} against the previous month.` : "Insights from your own budgets and spending."}
+        description={selectedMonth ? `Reviewing ${monthLabel(selectedMonth)}.` : "Insights from your own budgets and spending."}
+        actions={selectedMonth && months.length > 0 ? (
+          <MonthPicker
+            selected={selectedMonth}
+            months={months}
+            canPrev={canPrev}
+            canNext={canNext}
+            onChange={setMonth}
+          />
+        ) : null}
       />
 
       <QueryBoundary
-        isLoading={loading} isError={tx.isError} error={tx.error}
-        onRetry={() => { tx.refetch(); }}
+        isLoading={loading}
+        isError={trendTx.isError || snapshots.isError}
+        error={trendTx.error ?? snapshots.error}
+        onRetry={() => { trendTx.refetch(); snapshots.refetch(); }}
         loading={<div className="space-y-6"><SkeletonChart /><div className="grid gap-4 md:grid-cols-3"><SkeletonStatCard /><SkeletonStatCard /><SkeletonStatCard /></div></div>}
       >
-        {groups.length === 0 ? (
+        {groups.length === 0 && !Object.values(snapshots.data ?? {}).some(g => g.length > 0) ? (
           <EmptyState
             icon={<Sparkles className="h-5 w-5" />}
             title="Create your first budget to unlock insights"
             description="Insights are based on the budgets you save — no fake data, no templates."
             action={<Link to="/budgets"><Button>Go to budgets</Button></Link>}
           />
-        ) : (
+        ) : selectedMonth ? (
           <Body
-            current={tx.data?.current ?? []}
-            previous={tx.data?.previous ?? []}
-            prevFrom={tx.data?.prevFrom ?? ""}
-            prevTo={tx.data?.prevTo ?? ""}
-            monthFrom={active.data?.from ?? ""}
-            monthTo={active.data?.to ?? ""}
+            selectedMonth={selectedMonth}
+            trendMonths={trendMonths}
+            allTx={trendTx.data ?? []}
+            snapshots={snapshots.data ?? {}}
             categories={cats.data ?? []}
-            groups={groups}
           />
-        )}
+        ) : null}
       </QueryBoundary>
     </AppShell>
   );
 }
 
-function Body({ current, previous, prevFrom, prevTo, monthFrom, monthTo, categories, groups }: {
-  current: HealthTx[]; previous: HealthTx[]; prevFrom: string; prevTo: string;
-  monthFrom: string; monthTo: string;
-  categories: { id: string; name: string }[];
-  groups: ReturnType<typeof useBudgetGroups>["groups"];
+function MonthPicker({ selected, months, canPrev, canNext, onChange }: {
+  selected: MonthKey;
+  months: MonthKey[];
+  canPrev: boolean;
+  canNext: boolean;
+  onChange: (m: MonthKey) => void;
 }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline" size="icon"
+        disabled={!canPrev}
+        onClick={() => onChange(shiftMonth(selected, -1))}
+        aria-label="Previous month"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Select value={selected} onValueChange={onChange}>
+        <SelectTrigger className="min-w-[180px]">
+          <SelectValue>{monthLabel(selected)}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {months.map(m => (
+            <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant="outline" size="icon"
+        disabled={!canNext}
+        onClick={() => onChange(shiftMonth(selected, 1))}
+        aria-label="Next month"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function filterTx(all: HealthTx[], from: string, to: string): HealthTx[] {
+  return all.filter(t => t.occurred_on >= from && t.occurred_on <= to);
+}
+
+function Body({ selectedMonth, trendMonths, allTx, snapshots, categories }: {
+  selectedMonth: MonthKey;
+  trendMonths: MonthKey[];
+  allTx: HealthTx[];
+  snapshots: Record<MonthKey, ReturnType<typeof useBudgetGroups>["groups"]>;
+  categories: { id: string; name: string }[];
+}) {
+  const monthFrom = selectedMonth;
+  const monthTo = monthEnd(selectedMonth);
+  const prevMonth = shiftMonth(selectedMonth, -1);
+  const prevFrom = prevMonth;
+  const prevTo = monthEnd(prevMonth);
+
+  const curTx = useMemo(() => filterTx(allTx, monthFrom, monthTo), [allTx, monthFrom, monthTo]);
+  const prevTx = useMemo(() => filterTx(allTx, prevFrom, prevTo), [allTx, prevFrom, prevTo]);
+
+  const curGroups = snapshots[selectedMonth] ?? [];
+  const prevGroups = snapshots[prevMonth] ?? [];
+
   const health = useMemo(
-    () => computeHealth({ groups, categories, transactions: current, monthFrom, monthTo }),
-    [groups, categories, current, monthFrom, monthTo],
+    () => computeHealth({ groups: curGroups, categories, transactions: curTx, monthFrom, monthTo }),
+    [curGroups, categories, curTx, monthFrom, monthTo],
   );
   const prevHealth = useMemo(
-    () => computeHealth({ groups, categories, transactions: previous, monthFrom: prevFrom, monthTo: prevTo }),
-    [groups, categories, previous, prevFrom, prevTo],
+    () => computeHealth({ groups: prevGroups, categories, transactions: prevTx, monthFrom: prevFrom, monthTo: prevTo }),
+    [prevGroups, categories, prevTx, prevFrom, prevTo],
   );
+  const hasPrev = prevTx.length > 0 || prevGroups.length > 0;
 
   const {
-    score, scoreLabel, totalBudget, totalExpenseSpent, projectedTotalExpense,
-    expenseGroups, overBudget, projectedOver, uncategorisedSpent,
+    score, scoreLabel, totalBudget, totalSavings, totalExpenseSpent, projectedTotalExpense,
+    expenseGroups, overBudget, projectedOver, uncategorisedSpent, uncategorisedCount,
+    savingsSpent,
   } = health;
 
-  const diff = totalExpenseSpent - prevHealth.totalExpenseSpent;
-  const diffPct = prevHealth.totalExpenseSpent > 0 ? (diff / prevHealth.totalExpenseSpent) * 100 : 0;
+  const remainingBudget = Math.max(0, totalBudget - totalExpenseSpent);
+  const atRisk = expenseGroups.filter(g => g.status === "at_risk" || g.status === "projected_over").length;
 
-  // Top drivers: category spend within tracked budgets vs previous month
+  // ---- Trend series -------------------------------------------------------
+  const trendSeries = useMemo(() => {
+    return trendMonths.map(m => {
+      const from = m, to = monthEnd(m);
+      const tx = filterTx(allTx, from, to);
+      const g = snapshots[m] ?? [];
+      const h = computeHealth({ groups: g, categories, transactions: tx, monthFrom: from, monthTo: to });
+      return {
+        month: m,
+        label: monthShortLabel(m),
+        spending: Math.round(h.totalExpenseSpent),
+        budget: Math.round(h.totalBudget),
+        score: h.score,
+      };
+    });
+  }, [trendMonths, allTx, snapshots, categories]);
+
+  // ---- Category drivers & top-category trend -----------------------------
+  const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const sumByCat = (rows: HealthTx[]) => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      if (r.is_transfer || r.direction !== "out" || !r.category_id) continue;
+      const name = catById.get(r.category_id)?.name ?? "";
+      if (/income|transfer|saving/i.test(name)) continue;
+      m.set(r.category_id, (m.get(r.category_id) ?? 0) + Number(r.amount || 0));
+    }
+    return m;
+  };
+
   const drivers = useMemo(() => {
-    const catById = new Map(categories.map(c => [c.id, c]));
-    const sumBy = (rows: HealthTx[]) => {
-      const m = new Map<string, number>();
-      for (const r of rows) {
-        if (r.is_transfer || r.direction !== "out" || !r.category_id) continue;
-        const name = catById.get(r.category_id)?.name ?? "";
-        if (/income|transfer|saving/i.test(name)) continue;
-        m.set(r.category_id, (m.get(r.category_id) ?? 0) + Number(r.amount || 0));
-      }
-      return m;
-    };
-    const cur = sumBy(current); const prev = sumBy(previous);
+    const cur = sumByCat(curTx); const prev = sumByCat(prevTx);
     const trackedIds = new Set(expenseGroups.flatMap(g => g.group.categoryIds));
     return Array.from(cur.entries())
       .filter(([id]) => trackedIds.has(id))
       .map(([id, curAmt]) => {
         const prevAmt = prev.get(id) ?? 0;
-        return { name: catById.get(id)?.name ?? "Unknown", cur: curAmt, prev: prevAmt, change: curAmt - prevAmt };
+        return { id, name: catById.get(id)?.name ?? "Unknown", cur: curAmt, prev: prevAmt, change: curAmt - prevAmt };
       })
-      .sort((a, b) => b.cur - a.cur)
-      .slice(0, 5);
-  }, [current, previous, categories, expenseGroups]);
+      .sort((a, b) => b.cur - a.cur);
+  }, [curTx, prevTx, expenseGroups, catById]);
 
-  // Recommendations derived from user's own budgets
-  const recs = useMemo(() => {
-    const out: { tone: "negative" | "warning" | "positive" | "neutral"; title: string; body: string }[] = [];
-    for (const g of overBudget) {
-      out.push({ tone: "negative", title: `Trim ${g.group.name}`, body: `You're ${formatMoney(g.spent - g.budget)} over. Try capping the next week at ${formatMoney(Math.max(0, g.budget - g.spent) / 4)}.` });
-    }
-    for (const g of projectedOver) {
-      out.push({ tone: "warning", title: `Pace ${g.group.name}`, body: `On track for ${formatMoney(g.projected)}. Slowing to ${formatMoney(g.budget / 30)} a day keeps you inside your budget.` });
-    }
-    if (uncategorisedSpent > 0) {
-      out.push({ tone: "warning", title: "Categorise your spend", body: `${formatMoney(uncategorisedSpent)} isn't linked to a budget. Categorising sharpens every insight.` });
-    }
-    const healthy = health.healthy.slice(0, 1)[0];
-    if (healthy) out.push({ tone: "positive", title: `${healthy.group.name} is a win`, body: `Only ${Math.round(healthy.pct)}% used with ${formatMoney(healthy.remaining)} to spare.` });
-    return out.slice(0, 4);
-  }, [overBudget, projectedOver, uncategorisedSpent, health.healthy]);
+  const topDrivers = drivers.slice(0, 5);
+
+  // Biggest movers (all categories, not just tracked)
+  const movers = useMemo(() => {
+    const cur = sumByCat(curTx); const prev = sumByCat(prevTx);
+    const ids = new Set([...cur.keys(), ...prev.keys()]);
+    const list = Array.from(ids).map(id => {
+      const c = cur.get(id) ?? 0, p = prev.get(id) ?? 0;
+      return { id, name: catById.get(id)?.name ?? "Unknown", cur: c, prev: p, change: c - p };
+    });
+    const biggestIncrease = [...list].sort((a, b) => b.change - a.change)[0];
+    const biggestDecrease = [...list].sort((a, b) => a.change - b.change)[0];
+    return { biggestIncrease, biggestDecrease };
+  }, [curTx, prevTx, catById]);
+
+  // Top category trend: pick top 3 categories from selected month, plot over trend window.
+  const topCatTrend = useMemo(() => {
+    const topIds = topDrivers.slice(0, 3).map(d => d.id);
+    if (topIds.length === 0) return { series: [], catNames: [] as string[] };
+    const catNames = topIds.map(id => catById.get(id)?.name ?? "Unknown");
+    const series = trendMonths.map(m => {
+      const tx = filterTx(allTx, m, monthEnd(m));
+      const sums = sumByCat(tx);
+      const row: Record<string, string | number> = { label: monthShortLabel(m) };
+      topIds.forEach((id, i) => { row[catNames[i]] = Math.round(sums.get(id) ?? 0); });
+      return row;
+    });
+    return { series, catNames };
+  }, [topDrivers, trendMonths, allTx, catById]);
+
+  // ---- Comparison ---------------------------------------------------------
+  const diff = totalExpenseSpent - prevHealth.totalExpenseSpent;
+  const diffPct = prevHealth.totalExpenseSpent > 0 ? (diff / prevHealth.totalExpenseSpent) * 100 : 0;
+  const scoreDiff = score !== null && prevHealth.score !== null ? score - prevHealth.score : null;
+
+  // ---- Budget vs actual chart --------------------------------------------
+  const budgetVsActual = expenseGroups.map(g => ({
+    name: g.group.name,
+    Budget: Math.round(g.budget),
+    Spent: Math.round(g.spent),
+  }));
 
   return (
     <div className="space-y-8">
-      {/* Score */}
+      {/* Score & summary tiles */}
       <div className="surface-elevated grid gap-6 p-6 sm:p-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="flex flex-col items-start justify-center gap-2">
           <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Budget score</p>
@@ -166,36 +314,41 @@ function Body({ current, previous, prevFrom, prevTo, monthFrom, monthTo, categor
           <p className="text-sm text-muted-foreground">
             {totalBudget > 0 ? `Spending ${formatMoney(totalExpenseSpent, { compact: true })} of ${formatMoney(totalBudget, { compact: true })}` : "Add an expense budget to grow your score."}
           </p>
+          {scoreDiff !== null && (
+            <StatusPill tone={scoreDiff >= 0 ? "positive" : "negative"} dot>
+              {scoreDiff >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {scoreDiff >= 0 ? "+" : ""}{scoreDiff} vs last month
+            </StatusPill>
+          )}
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <MiniStat label="This month" value={formatMoney(totalExpenseSpent, { compact: true })} />
-          <MiniStat
-            label="vs last month"
-            value={formatMoney(Math.abs(diff), { compact: true })}
-            trailing={<StatusPill tone={diff <= 0 ? "positive" : "negative"} dot>
-              {diff <= 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-              {prevHealth.totalExpenseSpent > 0 ? `${diffPct.toFixed(0)}%` : "new"}
-            </StatusPill>}
-          />
-          <MiniStat label="Projected total" value={formatMoney(projectedTotalExpense, { compact: true })} hint={totalBudget > 0 ? (projectedTotalExpense > totalBudget ? `${formatMoney(projectedTotalExpense - totalBudget)} over budget` : `Within your ${formatMoney(totalBudget, { compact: true })} plan`) : undefined} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MiniStat label="Total spending" value={formatMoney(totalExpenseSpent, { compact: true })} />
+          <MiniStat label="Total budgeted" value={formatMoney(totalBudget, { compact: true })} />
+          <MiniStat label="Remaining" value={formatMoney(remainingBudget, { compact: true })} hint={totalBudget > 0 ? `${Math.round((remainingBudget / totalBudget) * 100)}% left` : undefined} />
+          <MiniStat label="Savings target" value={formatMoney(totalSavings, { compact: true })} hint={totalSavings > 0 ? `${formatMoney(savingsSpent, { compact: true })} saved` : undefined} />
+          <MiniStat label="Over budget" value={String(overBudget.length)} tone={overBudget.length > 0 ? "negative" : "neutral"} />
+          <MiniStat label="At risk" value={String(atRisk)} tone={atRisk > 0 ? "warning" : "neutral"} />
+          <MiniStat label="Uncategorised" value={String(uncategorisedCount)} hint={uncategorisedSpent > 0 ? formatMoney(uncategorisedSpent, { compact: true }) : undefined} tone={uncategorisedCount > 0 ? "warning" : "neutral"} />
+          <MiniStat label="Projected total" value={formatMoney(projectedTotalExpense, { compact: true })} hint={totalBudget > 0 && projectedTotalExpense > totalBudget ? `${formatMoney(projectedTotalExpense - totalBudget)} over` : undefined} />
         </div>
       </div>
 
-      {/* Budget health */}
+      {/* Budget performance */}
       {expenseGroups.length === 0 ? (
         <EmptyState
           icon={<PieChart className="h-5 w-5" />}
-          title="No expense budgets yet"
-          description="Add an expense budget to see how each one is tracking."
+          title="No expense budgets for this month"
+          description={`No saved budgets were active in ${monthLabel(selectedMonth)}.`}
           action={<Link to="/budgets"><Button size="sm">Add a budget</Button></Link>}
         />
       ) : (
         <section>
-          <h2 className="mb-3 text-display text-2xl">Budget health</h2>
+          <h2 className="mb-3 text-display text-2xl">Budget performance</h2>
           <div className="surface-card divide-y divide-border">
             {expenseGroups.map(g => {
               const tone = g.status === "over" ? "negative" : g.status === "projected_over" ? "warning" : g.status === "at_risk" ? "warning" : g.status === "unused" ? "neutral" : "positive";
               const label = g.status === "over" ? "Over" : g.status === "projected_over" ? "Trending over" : g.status === "at_risk" ? "Watch" : g.status === "unused" ? "Unused" : "On track";
+              const linked = g.group.categoryIds.map(id => catById.get(id)?.name).filter(Boolean).join(", ");
               return (
                 <div key={g.group.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-4">
                   <div className="min-w-0">
@@ -203,18 +356,19 @@ function Body({ current, previous, prevFrom, prevTo, monthFrom, monthTo, categor
                       <p className="truncate font-medium">{g.group.name}</p>
                       <StatusPill tone={tone as any} dot>{label}</StatusPill>
                     </div>
+                    {linked && <p className="mt-0.5 truncate text-xs text-muted-foreground">{linked}</p>}
                     <ProgressBar
                       value={g.pct}
                       tone={g.status === "over" ? "negative" : g.status === "projected_over" || g.status === "at_risk" ? "warning" : "primary"}
                       className="mt-2 max-w-md"
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Projected {formatMoney(g.projected, { compact: true })} of {formatMoney(g.budget, { compact: true })}
+                      {formatMoney(g.spent, { compact: true })} of {formatMoney(g.budget, { compact: true })} · {Math.round(g.pct)}% · {formatMoney(g.remaining, { compact: true })} left
                     </p>
                   </div>
                   <div className="text-right">
                     <p data-numeric className="text-display text-xl">{formatMoney(g.spent, { compact: true })}</p>
-                    <p className="text-xs text-muted-foreground">{formatMoney(g.remaining, { compact: true })} left</p>
+                    <p className="text-xs text-muted-foreground">of {formatMoney(g.budget, { compact: true })}</p>
                   </div>
                 </div>
               );
@@ -223,16 +377,73 @@ function Body({ current, previous, prevFrom, prevTo, monthFrom, monthTo, categor
         </section>
       )}
 
+      {/* Budget vs actual chart */}
+      {budgetVsActual.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-display text-2xl">Budget vs actual</h2>
+          <div className="surface-card p-4">
+            <ResponsiveContainer width="100%" height={Math.max(240, budgetVsActual.length * 44)}>
+              <BarChart data={budgetVsActual} layout="vertical" margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis type="number" tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis type="category" dataKey="name" width={140} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Legend />
+                <Bar dataKey="Budget" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="Spent" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
+
+      {/* Month-to-month comparison */}
+      <section>
+        <h2 className="mb-3 text-display text-2xl">Month-to-month comparison</h2>
+        {hasPrev ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MiniStat
+              label="Spending change"
+              value={`${diff <= 0 ? "−" : "+"}${formatMoney(Math.abs(diff), { compact: true })}`}
+              tone={diff <= 0 ? "positive" : "negative"}
+              hint={prevHealth.totalExpenseSpent > 0 ? `${diffPct.toFixed(0)}% vs ${monthShortLabel(prevMonth)}` : "no prior spend"}
+            />
+            <MiniStat
+              label="Score change"
+              value={scoreDiff === null ? "—" : `${scoreDiff >= 0 ? "+" : ""}${scoreDiff}`}
+              tone={scoreDiff === null ? "neutral" : scoreDiff >= 0 ? "positive" : "negative"}
+              hint={`Now ${score ?? "—"} · was ${prevHealth.score ?? "—"}`}
+            />
+            <MiniStat
+              label="Biggest increase"
+              value={movers.biggestIncrease && movers.biggestIncrease.change > 0 ? movers.biggestIncrease.name : "—"}
+              hint={movers.biggestIncrease && movers.biggestIncrease.change > 0 ? `+${formatMoney(movers.biggestIncrease.change, { compact: true })}` : undefined}
+              tone="warning"
+            />
+            <MiniStat
+              label="Biggest decrease"
+              value={movers.biggestDecrease && movers.biggestDecrease.change < 0 ? movers.biggestDecrease.name : "—"}
+              hint={movers.biggestDecrease && movers.biggestDecrease.change < 0 ? `−${formatMoney(Math.abs(movers.biggestDecrease.change), { compact: true })}` : undefined}
+              tone="positive"
+            />
+          </div>
+        ) : (
+          <div className="surface-card p-6 text-sm text-muted-foreground">
+            Month-to-month insights will appear after you import another month of transactions.
+          </div>
+        )}
+      </section>
+
       {/* Top drivers */}
-      {drivers.length > 0 && (
+      {topDrivers.length > 0 && (
         <section>
           <h2 className="mb-3 text-display text-2xl">Top spending drivers</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {drivers.map((d, i) => {
+            {topDrivers.map((d) => {
               const down = d.change < 0;
               const isNew = d.prev === 0 && d.cur > 0;
               return (
-                <div key={i} className="surface-card flex items-start gap-3 p-4">
+                <div key={d.id} className="surface-card flex items-start gap-3 p-4">
                   <span className={down ? "grid h-10 w-10 shrink-0 place-items-center rounded-md bg-positive-soft text-positive" : "grid h-10 w-10 shrink-0 place-items-center rounded-md bg-warning-soft text-warning"}>
                     {down ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                   </span>
@@ -250,31 +461,81 @@ function Body({ current, previous, prevFrom, prevTo, monthFrom, monthTo, categor
         </section>
       )}
 
-      {/* Recommendations */}
-      {recs.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-display text-2xl">Recommendations</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {recs.map((r, i) => (
-              <div key={i} className="surface-card p-5">
-                <div className="mb-1"><StatusPill tone={r.tone}>{r.tone === "negative" ? "Fix" : r.tone === "warning" ? "Watch" : r.tone === "positive" ? "Win" : "Info"}</StatusPill></div>
-                <p className="font-medium">{r.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{r.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Trend charts */}
+      <section>
+        <h2 className="mb-3 text-display text-2xl">Trends</h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TrendCard title="Total monthly spending">
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={trendSeries} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Line type="monotone" dataKey="spending" stroke="hsl(var(--primary))" strokeWidth={2} dot />
+                <Line type="monotone" dataKey="budget" stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </TrendCard>
+
+          <TrendCard title="Budget score over time">
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={trendSeries} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis domain={[0, 100]} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <ReTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </TrendCard>
+
+          {topCatTrend.catNames.length > 0 && (
+            <TrendCard title="Top category spending" className="lg:col-span-2">
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={topCatTrend.series} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis tickFormatter={(v) => formatMoney(v, { compact: true })} stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <ReTooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
+                  <Legend />
+                  {topCatTrend.catNames.map((n, i) => (
+                    <Line key={n} type="monotone" dataKey={n}
+                      stroke={["hsl(var(--primary))", "hsl(var(--warning))", "hsl(var(--positive))"][i] ?? "hsl(var(--muted-foreground))"}
+                      strokeWidth={2} dot />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </TrendCard>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function MiniStat({ label, value, trailing, hint }: { label: string; value: string; trailing?: React.ReactNode; hint?: string }) {
+function TrendCard({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`surface-card p-4 ${className ?? ""}`}>
+      <p className="mb-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, trailing, hint, tone }: {
+  label: string; value: string; trailing?: React.ReactNode; hint?: string;
+  tone?: "positive" | "warning" | "negative" | "neutral";
+}) {
+  const toneClass =
+    tone === "positive" ? "text-positive" :
+    tone === "warning" ? "text-warning" :
+    tone === "negative" ? "text-negative" : "";
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4">
       <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
       <div className="mt-1 flex items-center gap-2">
-        <p data-numeric className="text-display text-3xl">{value}</p>
+        <p data-numeric className={`text-display text-2xl ${toneClass}`}>{value}</p>
         {trailing}
       </div>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
