@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { PieChart, Plus, Trash2, PiggyBank, Wallet, Sparkles, AlertTriangle, X } from "lucide-react";
+import { PieChart, Plus, Trash2, PiggyBank, Wallet, Sparkles, AlertTriangle, X, CopyPlus } from "lucide-react";
 
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -26,6 +26,7 @@ import {
   useBudgetGroups, detectCategoryKind, STUDENT_SUGGESTIONS, matchSuggestionCategories,
   type BudgetGroup, type BudgetKind, type BudgetPeriod,
 } from "@/lib/budgetGroups";
+import { useSnapshotMonths, replaceLiveBudgets, monthLabel, type MonthKey } from "@/lib/insightsMonths";
 
 export const Route = createFileRoute("/budgets")({ component: BudgetsPage });
 
