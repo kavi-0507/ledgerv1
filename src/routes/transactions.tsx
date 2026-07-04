@@ -30,21 +30,100 @@ import { categoryIcon, PURPOSE_PRESETS } from "@/lib/categories";
 export const Route = createFileRoute("/transactions")({ component: TransactionsPage });
 
 function TransactionsPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [direction, setDirection] = useState<"" | "in" | "out">("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [needsReview, setNeedsReview] = useState(false);
   const [page, setPage] = useState(1);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const categories = useCategories();
   const q = useTransactions({ search, direction, category_id: categoryId, needs_review: needsReview || undefined, page, pageSize: 50 });
+
+  const items = (q.data?.items ?? []) as Tx[];
+  const selectedItems = useMemo(() => items.filter(t => selected.has(t.id)), [items, selected]);
+  const totalsSource = selected.size > 0 ? selectedItems : items;
+  const totals = useMemo(() => {
+    let inSum = 0, outSum = 0;
+    for (const t of totalsSource) {
+      if (t.direction === "in") inSum += Number(t.amount) || 0;
+      else outSum += Number(t.amount) || 0;
+    }
+    return { inSum, outSum, net: inSum - outSum, count: totalsSource.length };
+  }, [totalsSource]);
+
+  const activeCategoryName = categoryId
+    ? (categories.data ?? []).find((c: any) => c.id === categoryId)?.name ?? null
+    : null;
+
+  const clearSelection = () => setSelected(new Set());
+  const resetOnFilterChange = () => { setPage(1); clearSelection(); };
+
+  const toggleId = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const selectAllOnPage = () => setSelected(new Set(items.map(t => t.id)));
+
+  const bulkInvalidate = () => {
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    qc.invalidateQueries({ queryKey: ["home_month_tx"] });
+  };
+
+  const bulkReview = useMutation({
+    mutationFn: async (needs: boolean) => {
+      const ids = Array.from(selected);
+      if (ids.length === 0) return;
+      const { error } = await supabase.from("transactions").update({ needs_review: needs }).in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, needs) => {
+      toast.success(needs ? "Flagged for review" : "Marked reviewed");
+      clearSelection();
+      bulkInvalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => {
+      const ids = Array.from(selected);
+      if (ids.length === 0) return;
+      const { error } = await supabase.from("transactions").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Deleted");
+      clearSelection();
+      bulkInvalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <AppShell
       header={
         <div className="flex w-full items-center justify-between gap-4">
           <h1 className="text-display text-xl sm:text-2xl">Activity</h1>
-          <NewTransactionDialog />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={selectMode ? "secondary" : "outline"}
+              onClick={() => {
+                if (selectMode) clearSelection();
+                setSelectMode(m => !m);
+              }}
+            >
+              {selectMode ? "Done" : "Select"}
+            </Button>
+            <NewTransactionDialog />
+          </div>
         </div>
       }
     >
@@ -54,9 +133,9 @@ function TransactionsPage() {
         <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search description…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
+            <Input placeholder="Search description…" value={search} onChange={e => { setSearch(e.target.value); resetOnFilterChange(); }} className="pl-9" />
           </div>
-          <Select value={direction || "all"} onValueChange={(v) => { setDirection(v === "all" ? "" : v as any); setPage(1); }}>
+          <Select value={direction || "all"} onValueChange={(v) => { setDirection(v === "all" ? "" : v as any); resetOnFilterChange(); }}>
             <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
@@ -65,14 +144,62 @@ function TransactionsPage() {
             </SelectContent>
           </Select>
           <div className="w-[200px]">
-            <CategorySelect value={categoryId} onChange={(v) => { setCategoryId(v); setPage(1); }} categories={categories.data ?? []} />
+            <CategorySelect value={categoryId} onChange={(v) => { setCategoryId(v); resetOnFilterChange(); }} categories={categories.data ?? []} />
           </div>
           <label className="flex items-center gap-2 text-sm px-3">
-            <Checkbox checked={needsReview} onCheckedChange={(v) => { setNeedsReview(!!v); setPage(1); }} />
+            <Checkbox checked={needsReview} onCheckedChange={(v) => { setNeedsReview(!!v); resetOnFilterChange(); }} />
             Needs review
           </label>
         </div>
       </div>
+
+      {/* Totals + bulk action bar */}
+      {items.length > 0 && (
+        <div className="surface-card mb-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span className="text-muted-foreground">
+              {selected.size > 0
+                ? `${selected.size} selected`
+                : `${activeCategoryName ? activeCategoryName + " · " : ""}This page (${totals.count})`}
+            </span>
+            <span>Expenses <span data-numeric className="font-medium">{formatMoney(totals.outSum)}</span></span>
+            <span>Income <span data-numeric className="font-medium text-positive">{formatMoney(totals.inSum)}</span></span>
+            <span>
+              Net{" "}
+              <span
+                data-numeric
+                className={cn(
+                  "font-medium",
+                  totals.net > 0 && "text-positive",
+                  totals.net < 0 && "text-destructive",
+                )}
+              >
+                {totals.net < 0 ? "−" : ""}{formatMoney(Math.abs(totals.net))}
+              </span>
+            </span>
+          </div>
+          {selectMode && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={selectAllOnPage} disabled={items.length === 0}>
+                Select all
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clearSelection} disabled={selected.size === 0}>
+                Clear
+              </Button>
+              <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+              <Button size="sm" variant="outline" disabled={selected.size === 0 || bulkReview.isPending} onClick={() => bulkReview.mutate(false)}>
+                Mark reviewed
+              </Button>
+              <Button size="sm" variant="outline" disabled={selected.size === 0 || bulkReview.isPending} onClick={() => bulkReview.mutate(true)}>
+                Flag for review
+              </Button>
+              <Button size="sm" variant="destructive" disabled={selected.size === 0 || bulkDelete.isPending} onClick={() => setConfirmBulkDelete(true)}>
+                <Trash2 className="mr-1.5 h-4 w-4" />Delete
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       <QueryBoundary
         isLoading={q.isLoading}
@@ -85,19 +212,46 @@ function TransactionsPage() {
           <EmptyState title="No transactions match" description="Try clearing filters or add your first transaction." />
         ) : (
           <div className="surface-card divide-y divide-border">
-            {q.data?.items.map(t => <TxRow key={t.id} t={t as any} categories={categories.data ?? []} />)}
+            {items.map(t => (
+              <TxRow
+                key={t.id}
+                t={t}
+                categories={categories.data ?? []}
+                selectMode={selectMode}
+                selected={selected.has(t.id)}
+                onToggle={() => toggleId(t.id)}
+              />
+            ))}
           </div>
         )}
         {q.data && q.data.total > q.data.pageSize && (
           <div className="mt-4 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Page {page} of {Math.ceil(q.data.total / q.data.pageSize)}</span>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / q.data.pageSize)} onClick={() => setPage(p => p + 1)}>Next</Button>
+              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => { setPage(p => p - 1); clearSelection(); }}>Prev</Button>
+              <Button size="sm" variant="outline" disabled={page >= Math.ceil(q.data.total / q.data.pageSize)} onClick={() => { setPage(p => p + 1); clearSelection(); }}>Next</Button>
             </div>
           </div>
         )}
       </QueryBoundary>
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.size} transaction{selected.size === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setConfirmBulkDelete(false); bulkDelete.mutate(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
@@ -108,15 +262,35 @@ type Tx = {
   categories?: { id: string; name: string; color: string | null } | null;
 };
 
-function TxRow({ t, categories }: { t: Tx; categories: any[] }) {
+function TxRow({
+  t, categories, selectMode, selected, onToggle,
+}: {
+  t: Tx; categories: any[];
+  selectMode: boolean; selected: boolean; onToggle: () => void;
+}) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const catName = t.categories?.name ?? null;
   const title = t.merchant || t.description;
   const sub = t.merchant && t.description && t.merchant !== t.description ? t.description : null;
+  const handleClick = () => {
+    if (selectMode) onToggle();
+    else setOpen(true);
+  };
   return (
     <>
-      <button className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-muted/40 interactive" onClick={() => setOpen(true)}>
+      <button
+        className={cn(
+          "flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-muted/40 interactive",
+          selectMode && selected && "bg-muted/60",
+        )}
+        onClick={handleClick}
+      >
+        {selectMode && (
+          <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+            <Checkbox checked={selected} onCheckedChange={onToggle} />
+          </span>
+        )}
         <div className="h-9 w-9 grid place-items-center rounded-md bg-muted text-base shrink-0" aria-hidden>
           {catName ? categoryIcon(catName) : "❓"}
         </div>
