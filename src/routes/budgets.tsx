@@ -260,6 +260,15 @@ function BudgetsPage() {
           setEditing(null); setCreating(false);
         }}
       />
+
+      {userId && (
+        <CarryFromDialog
+          open={carryFromOpen}
+          onOpenChange={setCarryFromOpen}
+          userId={userId}
+          categories={cats}
+        />
+      )}
     </AppShell>
   );
 }
