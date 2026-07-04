@@ -59,11 +59,12 @@ function useSpendByCategory(from: string | undefined, to: string | undefined) {
 function BudgetsPage() {
   const [editing, setEditing] = useState<BudgetGroup | null>(null);
   const [creating, setCreating] = useState(false);
+  const [carryFromOpen, setCarryFromOpen] = useState(false);
 
   const catsQ = useCategories();
   const active = useActiveMonth();
   const spendQ = useSpendByCategory(active.data?.from, active.data?.to);
-  const { groups, upsert, remove, addMany } = useBudgetGroups();
+  const { groups, upsert, remove, addMany, userId } = useBudgetGroups();
 
   const cats: CatLite[] = catsQ.data ?? [];
   const catById = useMemo(() => new Map(cats.map(c => [c.id, c])), [cats]);
