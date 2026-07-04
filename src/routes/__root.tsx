@@ -113,15 +113,23 @@ function AuthGate({ children }: { children: ReactNode }) {
   const publicPath =
     path === "/auth" || path === "/forgot-password" || path === "/reset-password";
 
+  const isRecovery =
+    typeof window !== "undefined" && window.location.hash.includes("type=recovery");
+
   useEffect(() => {
     if (loading) return;
+    if (isRecovery && path !== "/reset-password") {
+      router.navigate({ to: "/reset-password", replace: true });
+      return;
+    }
     if (!session && !publicPath) {
       queryClient.cancelQueries();
       queryClient.clear();
       router.navigate({ to: "/auth", replace: true });
     }
-    if (session && path === "/auth") router.navigate({ to: "/", replace: true });
-  }, [session, loading, path, publicPath, router, queryClient]);
+    if (session && path === "/auth" && !isRecovery)
+      router.navigate({ to: "/", replace: true });
+  }, [session, loading, path, publicPath, router, queryClient, isRecovery]);
 
   if (loading) {
     return (
