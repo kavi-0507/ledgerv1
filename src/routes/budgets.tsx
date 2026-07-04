@@ -126,7 +126,12 @@ function BudgetsPage() {
       header={
         <div className="flex w-full items-center justify-between gap-3">
           <h1 className="truncate text-display text-xl sm:text-2xl">Budgets</h1>
-          <Button size="sm" onClick={() => setCreating(true)}><Plus className="mr-1.5 h-4 w-4" />New budget</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setCarryFromOpen(true)}>
+              <CopyPlus className="mr-1.5 h-4 w-4" />Carry from…
+            </Button>
+            <Button size="sm" onClick={() => setCreating(true)}><Plus className="mr-1.5 h-4 w-4" />New budget</Button>
+          </div>
         </div>
       }
     >
