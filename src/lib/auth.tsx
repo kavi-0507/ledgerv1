@@ -33,7 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       maybeSeed(data.session?.user ?? null);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === "PASSWORD_RECOVERY" && typeof window !== "undefined") {
+        if (window.location.pathname !== "/reset-password") {
+          window.location.replace("/reset-password");
+          return;
+        }
+      }
       setSession(s);
       setLoading(false);
       maybeSeed(s?.user ?? null);
