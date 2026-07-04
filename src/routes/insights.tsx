@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
-  ChevronLeft, ChevronRight, PieChart, Sparkles, TrendingDown, TrendingUp,
+  ChevronLeft, ChevronRight, CopyPlus, PieChart, Sparkles, TrendingDown, TrendingUp,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
   ResponsiveContainer, LineChart, Line, Legend,
 } from "recharts";
+import { toast } from "sonner";
 
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
@@ -19,15 +20,20 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCategories, useActiveMonth } from "@/lib/db";
 import { formatMoney } from "@/lib/format";
-import { useBudgetGroups } from "@/lib/budgetGroups";
+import { useBudgetGroups, type BudgetGroup } from "@/lib/budgetGroups";
 import { computeHealth, scoreTone, type Tx as HealthTx } from "@/lib/budgetHealth";
 import {
-  useAvailableMonths, useMonthSnapshots, useAutoSnapshotCurrentMonth,
-  monthStart, monthEnd, shiftMonth, monthLabel, monthShortLabel, type MonthKey,
+  useAvailableMonths, useMonthSnapshots, useAutoSnapshotCurrentMonth, useSnapshotMonths,
+  applySnapshotToMonths, replaceLiveBudgets,
+  monthStart, monthEnd, shiftMonth, monthLabel, type MonthKey,
 } from "@/lib/insightsMonths";
 import { z } from "zod";
 
