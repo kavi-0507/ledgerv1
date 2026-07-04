@@ -97,6 +97,10 @@ function InsightsPage() {
 
   const loading = active.isLoading || cats.isLoading || trendTx.isLoading || snapshots.isLoading;
 
+  const currentMonth = monthStart(new Date().toISOString().slice(0, 10));
+  const sourceGroups: BudgetGroup[] = selectedMonth ? (snapshots.data?.[selectedMonth] ?? groups) : groups;
+  const [carryOpen, setCarryOpen] = useState(false);
+
   return (
     <AppShell header={<h1 className="truncate text-display text-xl sm:text-2xl">Insights</h1>}>
       <PageHeader
@@ -104,15 +108,23 @@ function InsightsPage() {
         title="Why am I okay — or not?"
         description={selectedMonth ? `Reviewing ${monthLabel(selectedMonth)}.` : "Insights from your own budgets and spending."}
         actions={selectedMonth && months.length > 0 ? (
-          <MonthPicker
-            selected={selectedMonth}
-            months={months}
-            canPrev={canPrev}
-            canNext={canNext}
-            onChange={setMonth}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <MonthPicker
+              selected={selectedMonth}
+              months={months}
+              canPrev={canPrev}
+              canNext={canNext}
+              onChange={setMonth}
+            />
+            {sourceGroups.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setCarryOpen(true)}>
+                <CopyPlus className="mr-1.5 h-4 w-4" />Carry forward…
+              </Button>
+            )}
+          </div>
         ) : null}
       />
+
 
       <QueryBoundary
         isLoading={loading}
