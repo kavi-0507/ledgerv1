@@ -146,3 +146,21 @@ export type DbProfile = {
   defaults_seeded_at?: string | null;
   defaults_source_user_id?: string | null;
 };
+
+export type RentBillRecurrence = "one-off" | "weekly" | "monthly" | "termly" | "yearly";
+export type RentBillStatus = "pending" | "paid";
+
+export type DbRentBill = {
+  id: string;
+  user_id: string;
+  title: string;
+  amount: number;
+  due_date: string;
+  recurrence: RentBillRecurrence;
+  status: RentBillStatus;
+  paid_at: string | null;
+  notes: string | null;
+  series_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
