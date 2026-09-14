@@ -22,6 +22,7 @@ const PRIMARY: NavItem[] = [
   { to: "/", label: "Home", icon: LayoutDashboard },
   { to: "/transactions", label: "Activity", icon: Receipt },
   { to: "/budgets", label: "Budgets", icon: PieChart },
+  { to: "/rent-bills", label: "Rent & Bills", icon: Building2 },
   { to: "/insights", label: "Insights", icon: Sparkles },
   { to: "/review", label: "Review", icon: ClipboardCheck },
 ];
