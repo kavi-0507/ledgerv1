@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Receipt,
   PieChart,
+  Building2,
   Upload,
   Sparkles,
   ClipboardCheck,
