@@ -13,6 +13,7 @@ import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as RentBillsRouteImport } from './routes/rent-bills'
 import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -38,6 +39,11 @@ const ReviewRoute = ReviewRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RentBillsRoute = RentBillsRouteImport.update({
+  id: '/rent-bills',
+  path: '/rent-bills',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InsightsRoute = InsightsRouteImport.update({
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/import': typeof ImportRoute
   '/insights': typeof InsightsRoute
+  '/rent-bills': typeof RentBillsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/import': typeof ImportRoute
   '/insights': typeof InsightsRoute
+  '/rent-bills': typeof RentBillsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/import': typeof ImportRoute
   '/insights': typeof InsightsRoute
+  '/rent-bills': typeof RentBillsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/import'
     | '/insights'
+    | '/rent-bills'
     | '/reset-password'
     | '/review'
     | '/settings'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/import'
     | '/insights'
+    | '/rent-bills'
     | '/reset-password'
     | '/review'
     | '/settings'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/import'
     | '/insights'
+    | '/rent-bills'
     | '/reset-password'
     | '/review'
     | '/settings'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   ImportRoute: typeof ImportRoute
   InsightsRoute: typeof InsightsRoute
+  RentBillsRoute: typeof RentBillsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rent-bills': {
+      id: '/rent-bills'
+      path: '/rent-bills'
+      fullPath: '/rent-bills'
+      preLoaderRoute: typeof RentBillsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/insights': {
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   ImportRoute: ImportRoute,
   InsightsRoute: InsightsRoute,
+  RentBillsRoute: RentBillsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Receipt,
   PieChart,
+  Building2,
   Upload,
   Sparkles,
   ClipboardCheck,
@@ -21,6 +22,7 @@ const PRIMARY: NavItem[] = [
   { to: "/", label: "Home", icon: LayoutDashboard },
   { to: "/transactions", label: "Activity", icon: Receipt },
   { to: "/budgets", label: "Budgets", icon: PieChart },
+  { to: "/rent-bills", label: "Rent & Bills", icon: Building2 },
   { to: "/insights", label: "Insights", icon: Sparkles },
   { to: "/review", label: "Review", icon: ClipboardCheck },
 ];
@@ -110,7 +112,7 @@ export function AppShell({
 
       {/* MOBILE BOTTOM NAV */}
       <nav className="glass fixed inset-x-0 bottom-0 z-40 border-t border-border pb-safe md:hidden">
-        <ul className="mx-auto grid max-w-lg grid-cols-5">
+        <ul className="mx-auto grid max-w-lg grid-cols-6">
           {PRIMARY.map((item) => {
             const Icon = item.icon;
             const active = path === item.to;

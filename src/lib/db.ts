@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import type {
   DbCategory, DbTransaction, DbBudget, DbMerchantRule,
   DbReminder, DbRecommendation, DbImport, DbWeeklyReview, DbProfile,
+  DbRentBill,
 } from "./supabase";
 
 /** Return the current user's default account id, creating one if none exists. */
@@ -217,6 +218,22 @@ export function useActiveMonth() {
         isFallback: data?.[0]?.occurred_on ? true : false,
         label: latest.toLocaleString(undefined, { month: "long", year: "numeric" }),
       };
+    },
+  });
+}
+
+// ---- Rent & Bills ----
+export function useRentBills() {
+  return useQuery({
+    queryKey: ["rent_bills"],
+    queryFn: async (): Promise<DbRentBill[]> => {
+      const { data, error } = await supabase
+        .from("rent_bills")
+        .select("*")
+        .order("status", { ascending: true })
+        .order("due_date", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as DbRentBill[];
     },
   });
 }
