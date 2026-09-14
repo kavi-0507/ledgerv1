@@ -221,3 +221,19 @@ export function useActiveMonth() {
     },
   });
 }
+
+// ---- Rent & Bills ----
+export function useRentBills() {
+  return useQuery({
+    queryKey: ["rent_bills"],
+    queryFn: async (): Promise<DbRentBill[]> => {
+      const { data, error } = await supabase
+        .from("rent_bills")
+        .select("*")
+        .order("status", { ascending: true })
+        .order("due_date", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as DbRentBill[];
+    },
+  });
+}
