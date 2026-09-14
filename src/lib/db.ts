@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import type {
   DbCategory, DbTransaction, DbBudget, DbMerchantRule,
   DbReminder, DbRecommendation, DbImport, DbWeeklyReview, DbProfile,
+  DbRentBill,
 } from "./supabase";
 
 /** Return the current user's default account id, creating one if none exists. */
