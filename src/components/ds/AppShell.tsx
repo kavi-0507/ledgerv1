@@ -112,7 +112,7 @@ export function AppShell({
 
       {/* MOBILE BOTTOM NAV */}
       <nav className="glass fixed inset-x-0 bottom-0 z-40 border-t border-border pb-safe md:hidden">
-        <ul className="mx-auto grid max-w-lg grid-cols-5">
+        <ul className="mx-auto grid max-w-lg grid-cols-6">
           {PRIMARY.map((item) => {
             const Icon = item.icon;
             const active = path === item.to;
