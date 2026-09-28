@@ -1,0 +1,2 @@
+ALTER TABLE public.rent_bills ADD COLUMN IF NOT EXISTS transaction_id uuid REFERENCES public.transactions(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS rent_bills_transaction_id_idx ON public.rent_bills(transaction_id);

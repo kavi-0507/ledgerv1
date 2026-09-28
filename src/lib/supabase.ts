@@ -161,6 +161,7 @@ export type DbRentBill = {
   paid_at: string | null;
   notes: string | null;
   series_id: string | null;
+  transaction_id: string | null;
   created_at: string;
   updated_at: string | null;
 };

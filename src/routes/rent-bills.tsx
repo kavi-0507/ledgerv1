@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Pencil, Trash2, Check, CalendarDays, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Building2, Plus, Pencil, Trash2, Check, CalendarDays, Link2 } from "lucide-react";
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { EmptyState } from "@/components/ds/EmptyState";
@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRentBills } from "@/lib/db";
+import { useRentBills, useCategories, ensureDefaultAccountId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import type { DbRentBill, RentBillRecurrence } from "@/lib/supabase";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -230,11 +230,46 @@ function BillDialog({
   );
 }
 
+type CandidateTx = {
+  id: string;
+  occurred_on: string;
+  amount: number;
+  description: string;
+  merchant: string | null;
+  categories: { name: string } | null;
+};
+
+const BILL_CATEGORIES = ["rent & housing", "utilities"];
+
+function useCandidateTransactions() {
+  return useQuery({
+    queryKey: ["bill_candidate_tx"],
+    queryFn: async (): Promise<CandidateTx[]> => {
+      const since = new Date();
+      since.setDate(since.getDate() - 120);
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id,occurred_on,amount,description,merchant,categories(name)")
+        .eq("direction", "out")
+        .gte("occurred_on", since.toISOString().slice(0, 10))
+        .order("occurred_on", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return ((data ?? []) as unknown as CandidateTx[]).filter((t) =>
+        BILL_CATEGORIES.includes((t.categories?.name ?? "").toLowerCase()),
+      );
+    },
+  });
+}
+
 function RentBillsPage() {
   const { data: bills = [], isLoading, error } = useRentBills();
+  const { data: candidateTx = [] } = useCandidateTransactions();
+  const { data: categories = [] } = useCategories();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<DbRentBill | undefined>();
+  const [payingBill, setPayingBill] = useState<DbRentBill | undefined>();
 
   const addMutation = useMutation({
     mutationFn: async (values: FormState) => {
@@ -278,12 +313,52 @@ function RentBillsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rent_bills"] }),
   });
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["rent_bills"] });
+    queryClient.invalidateQueries({ queryKey: ["bill_candidate_tx"] });
+    queryClient.invalidateQueries({ queryKey: ["transactions"] });
+  };
+
   const markPaidMutation = useMutation({
-    mutationFn: async (bill: DbRentBill) => {
+    mutationFn: async ({ bill, tx, create }: { bill: DbRentBill; tx?: CandidateTx; create?: boolean }) => {
       const seriesId = bill.series_id ?? bill.id;
+      let txId: string | null = tx?.id ?? null;
+      let paidAt = tx ? new Date(tx.occurred_on + "T12:00:00").toISOString() : new Date().toISOString();
+
+      if (create) {
+        const userId = bill.user_id;
+        const accountId = await ensureDefaultAccountId(userId);
+        const wantUtil = !/rent|housing|accommodation/i.test(bill.title);
+        const cat = categories.find((c) =>
+          wantUtil ? c.name.toLowerCase() === "utilities" : c.name.toLowerCase() === "rent & housing",
+        );
+        const today = new Date();
+        const occurred = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        const { data: created, error: txErr } = await supabase
+          .from("transactions")
+          .insert({
+            user_id: userId,
+            account_id: accountId,
+            category_id: cat?.id ?? null,
+            occurred_on: occurred,
+            amount: Number(bill.amount),
+            direction: "out",
+            description: bill.title,
+            merchant: bill.title,
+            behaviour: "necessary",
+            needs_review: false,
+            source: "manual",
+          })
+          .select("id")
+          .single();
+        if (txErr) throw txErr;
+        txId = created.id;
+        paidAt = new Date().toISOString();
+      }
+
       const { error: updErr } = await supabase
         .from("rent_bills")
-        .update({ status: "paid", paid_at: new Date().toISOString(), series_id: seriesId })
+        .update({ status: "paid", paid_at: paidAt, series_id: seriesId, transaction_id: txId })
         .eq("id", bill.id);
       if (updErr) throw updErr;
 
@@ -311,7 +386,27 @@ function RentBillsPage() {
       });
       if (insErr) throw insErr;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rent_bills"] }),
+    onSuccess: invalidateAll,
+  });
+
+  const addFromTxMutation = useMutation({
+    mutationFn: async (t: CandidateTx) => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const { error } = await supabase.from("rent_bills").insert({
+        user_id: userData.user.id,
+        title: t.categories?.name === "Utilities" ? (t.merchant || t.description) : "Rent",
+        amount: Math.abs(Number(t.amount)),
+        due_date: t.occurred_on,
+        recurrence: "one-off",
+        status: "paid",
+        paid_at: new Date(t.occurred_on + "T12:00:00").toISOString(),
+        transaction_id: t.id,
+        notes: t.merchant || t.description,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidateAll,
   });
 
   const handleSave = (values: FormState) => {
@@ -326,6 +421,28 @@ function RentBillsPage() {
   const history = bills
     .filter((b) => b.status === "paid")
     .sort((a, b) => (b.paid_at ?? "").localeCompare(a.paid_at ?? ""));
+
+  const linkedIds = new Set(bills.map((b) => b.transaction_id).filter(Boolean) as string[]);
+  const freeTx = candidateTx.filter((t) => !linkedIds.has(t.id));
+  const isMatch = (bill: DbRentBill, t: CandidateTx) => {
+    if (Math.abs(Math.abs(Number(t.amount)) - Number(bill.amount)) > 0.01) return false;
+    const diff = Math.abs(parseLocalDate(t.occurred_on).getTime() - parseLocalDate(bill.due_date).getTime());
+    return diff <= 7 * 86400000;
+  };
+  // Each transaction suggested for at most one bill
+  const suggestions = new Map<string, CandidateTx>();
+  const used = new Set<string>();
+  for (const b of pending) {
+    const m = freeTx.find((t) => !used.has(t.id) && isMatch(b, t));
+    if (m) {
+      suggestions.set(b.id, m);
+      used.add(m.id);
+    }
+  }
+  const suggestionFor = (b: DbRentBill) => suggestions.get(b.id);
+  const candidatesFor = (b: DbRentBill) =>
+    [...freeTx].sort((x, y) => Number(isMatch(b, y)) - Number(isMatch(b, x)));
+  const unlogged = freeTx.filter((t) => !used.has(t.id));
 
   return (
     <AppShell
@@ -416,6 +533,27 @@ function RentBillsPage() {
                           {bill.notes && (
                             <p className="text-xs text-muted-foreground">{bill.notes}</p>
                           )}
+                          {(() => {
+                            const m = suggestionFor(bill);
+                            if (!m) return null;
+                            return (
+                              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-positive-soft/40 px-2 py-1.5 text-xs">
+                                <span>
+                                  Possible payment found: {m.merchant || m.description},{" "}
+                                  {formatDate(m.occurred_on)}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => markPaidMutation.mutate({ bill, tx: m })}
+                                  disabled={markPaidMutation.isPending}
+                                >
+                                  Confirm
+                                </Button>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
                           <Button
@@ -453,7 +591,7 @@ function RentBillsPage() {
                           <Button
                             variant={rel.overdue ? "default" : "outline"}
                             size="sm"
-                            onClick={() => markPaidMutation.mutate(bill)}
+                            onClick={() => setPayingBill(bill)}
                             disabled={markPaidMutation.isPending}
                           >
                             <Check className="mr-1.5 h-4 w-4" />
@@ -529,6 +667,40 @@ function RentBillsPage() {
             </section>
           </>
         )}
+
+        {!isLoading && unlogged.length > 0 && (
+          <section>
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Payments found in transactions
+            </h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Rent & utility payments from your transactions that aren't on this page yet.
+            </p>
+            <div className="space-y-2">
+              {unlogged.map((t) => (
+                <div key={t.id} className="surface-card flex items-center justify-between gap-4 p-4">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="truncate font-medium">{t.merchant || t.description}</p>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <span>{formatMoney(Math.abs(Number(t.amount)))}</span>
+                      <span>{formatDate(t.occurred_on)}</span>
+                      <span>{t.categories?.name}</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addFromTxMutation.mutate(t)}
+                    disabled={addFromTxMutation.isPending}
+                  >
+                    <Link2 className="mr-1.5 h-4 w-4" />
+                    Add to history
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {editing && (
@@ -541,6 +713,65 @@ function RentBillsPage() {
           onSave={handleSave}
         />
       )}
+
+      <Dialog open={!!payingBill} onOpenChange={(o) => !o && setPayingBill(undefined)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark “{payingBill?.title}” as paid</DialogTitle>
+            <DialogDescription>
+              Link a transaction you've already uploaded, or create a new one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-y-auto py-2">
+            {payingBill && candidatesFor(payingBill).length === 0 && (
+              <p className="text-sm text-muted-foreground">No rent or utility transactions available to link.</p>
+            )}
+            {payingBill &&
+              candidatesFor(payingBill).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    markPaidMutation.mutate({ bill: payingBill, tx: t });
+                    setPayingBill(undefined);
+                  }}
+                  className="surface-card flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-muted/50"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{t.merchant || t.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(t.occurred_on)} · {t.categories?.name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isMatch(payingBill, t) && <StatusPill tone="positive">Match</StatusPill>}
+                    <span className="text-sm">{formatMoney(Math.abs(Number(t.amount)))}</span>
+                  </div>
+                </button>
+              ))}
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (payingBill) markPaidMutation.mutate({ bill: payingBill });
+                setPayingBill(undefined);
+              }}
+            >
+              Just mark paid
+            </Button>
+            <Button
+              onClick={() => {
+                if (payingBill) markPaidMutation.mutate({ bill: payingBill, create: true });
+                setPayingBill(undefined);
+              }}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              Create transaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
