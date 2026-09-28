@@ -421,6 +421,7 @@ export type Database = {
           series_id: string | null
           status: string
           title: string
+          transaction_id: string | null
           updated_at: string
           user_id: string
         }
@@ -435,6 +436,7 @@ export type Database = {
           series_id?: string | null
           status?: string
           title: string
+          transaction_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -449,6 +451,7 @@ export type Database = {
           series_id?: string | null
           status?: string
           title?: string
+          transaction_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -458,6 +461,13 @@ export type Database = {
             columns: ["series_id"]
             isOneToOne: false
             referencedRelation: "rent_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_bills_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
