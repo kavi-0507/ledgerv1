@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Pencil, Trash2, Check, CalendarDays, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Building2, Plus, Pencil, Trash2, Check, CalendarDays, Link2 } from "lucide-react";
 import { AppShell } from "@/components/ds/AppShell";
 import { PageHeader } from "@/components/ds/PageHeader";
 import { EmptyState } from "@/components/ds/EmptyState";
@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRentBills } from "@/lib/db";
+import { useRentBills, useCategories, ensureDefaultAccountId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import type { DbRentBill, RentBillRecurrence } from "@/lib/supabase";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -230,11 +230,46 @@ function BillDialog({
   );
 }
 
+type CandidateTx = {
+  id: string;
+  occurred_on: string;
+  amount: number;
+  description: string;
+  merchant: string | null;
+  categories: { name: string } | null;
+};
+
+const BILL_CATEGORIES = ["rent & housing", "utilities"];
+
+function useCandidateTransactions() {
+  return useQuery({
+    queryKey: ["bill_candidate_tx"],
+    queryFn: async (): Promise<CandidateTx[]> => {
+      const since = new Date();
+      since.setDate(since.getDate() - 120);
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id,occurred_on,amount,description,merchant,categories(name)")
+        .eq("direction", "out")
+        .gte("occurred_on", since.toISOString().slice(0, 10))
+        .order("occurred_on", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return ((data ?? []) as unknown as CandidateTx[]).filter((t) =>
+        BILL_CATEGORIES.includes((t.categories?.name ?? "").toLowerCase()),
+      );
+    },
+  });
+}
+
 function RentBillsPage() {
   const { data: bills = [], isLoading, error } = useRentBills();
+  const { data: candidateTx = [] } = useCandidateTransactions();
+  const { data: categories = [] } = useCategories();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<DbRentBill | undefined>();
+  const [payingBill, setPayingBill] = useState<DbRentBill | undefined>();
 
   const addMutation = useMutation({
     mutationFn: async (values: FormState) => {
