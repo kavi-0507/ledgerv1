@@ -271,6 +271,8 @@ export default function Ledger() {
   const [authRequired, setAuthRequired] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [authStage, setAuthStage] = useState<"email" | "code">("email");
+  const [emailCode, setEmailCode] = useState("");
   const [authSending, setAuthSending] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [menu, setMenu] = useState(false);
@@ -307,6 +309,8 @@ export default function Ledger() {
     try { unsubscribe = auth.subscribe((event) => {
         if (event === "SIGNED_IN") {
           setAuthOpen(false);
+          setAuthStage("email");
+          setEmailCode("");
           // Supabase advises deferring client calls from its auth callback.
           setTimeout(() => void load(), 0);
         }
@@ -315,6 +319,8 @@ export default function Ledger() {
           setState(upgradeState(demoState()));
           setDemo(true);
           setAuthRequired(true);
+          setAuthStage("email");
+          setEmailCode("");
           revision.current = 0;
         }
     }); } catch { /* The example still works before account setup. */ }
@@ -385,13 +391,27 @@ export default function Ledger() {
       setMonth(currentMonth());
     }
   };
-  const sendSignInLink = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const requestSignInCode = async () => {
     setAuthSending(true);
     setAuthMessage("");
     try {
       await auth.signInWithOtp(email.trim(), authRedirectUrl(location.href));
-      setAuthMessage("Check your email for a sign-in link. Return to this page after opening it.");
+      setEmailCode("");
+      setAuthStage("code");
+      setAuthMessage("Enter the code from the newest email here. You can ignore the link.");
+    } catch (e) {
+      setAuthMessage((e as Error).message);
+    } finally {
+      setAuthSending(false);
+    }
+  };
+  const verifySignInCode = async () => {
+    setAuthSending(true);
+    setAuthMessage("");
+    try {
+      await auth.verifyEmailCode(email.trim(), emailCode.trim());
+      setAuthOpen(false);
+      await load();
     } catch (e) {
       setAuthMessage((e as Error).message);
     } finally {
@@ -1573,12 +1593,27 @@ export default function Ledger() {
       {authOpen && (
         <Dialog title="Your private Ledger" close={() => setAuthOpen(false)}>
           <div className="ledger-auth">
-            <p>Enter your email and we’ll send a sign-in link. Your transactions and plans will be saved to your own account.</p>
-            <form onSubmit={(event) => void sendSignInLink(event)}>
-              <label htmlFor="ledger-email">Email address</label>
-              <input id="ledger-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
-              <button className="button primary" type="submit" disabled={authSending}>{authSending ? "Sending…" : "Email me a sign-in link"}</button>
-            </form>
+            {authStage === "email" ? (
+              <>
+                <p>Enter your email and we’ll send a sign-in code. Your transactions and plans will be saved to your own account.</p>
+                <form onSubmit={(event) => { event.preventDefault(); void requestSignInCode(); }}>
+                  <label htmlFor="ledger-email">Email address</label>
+                  <input id="ledger-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+                  <button className="button primary" type="submit" disabled={authSending}>{authSending ? "Sending…" : "Email me a code"}</button>
+                </form>
+              </>
+            ) : (
+              <>
+                <p>Enter the code sent to <strong>{email}</strong>. Keep this page open while checking your email.</p>
+                <form onSubmit={(event) => { event.preventDefault(); void verifySignInCode(); }}>
+                  <label htmlFor="ledger-email-code">Sign-in code</label>
+                  <input id="ledger-email-code" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" required value={emailCode} onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="6-digit code" />
+                  <button className="button primary" type="submit" disabled={authSending || emailCode.length !== 6}>{authSending ? "Checking…" : "Sign in"}</button>
+                </form>
+                <button className="text-button" type="button" onClick={() => { setAuthStage("email"); setAuthMessage(""); }}>Use a different email</button>
+                <button className="text-button" type="button" disabled={authSending} onClick={() => void requestSignInCode()}>Send a new code</button>
+              </>
+            )}
             {authMessage && <p role="status">{authMessage}</p>}
           </div>
         </Dialog>

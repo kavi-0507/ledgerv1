@@ -11,6 +11,7 @@ const fake = {
     getSession: async () => ({ data: { session: { access_token: 'test' } }, error: null }),
     getUser: async () => ({ data: { user: { id: 'user-1' } }, error: null }),
     signInWithOtp: async input => { calls.push({ type: 'otp', input }); return { error: null }; },
+    verifyOtp: async input => { calls.push({ type: 'verify', input }); return { data: { session: { access_token: 'test' } }, error: null }; },
     signOut: async () => { calls.push({ type: 'signout' }); return { error: null }; },
     onAuthStateChange: listener => {
       calls.push({ type: 'subscribe', listener });
@@ -71,4 +72,11 @@ test('passes the Pages return URL to Supabase Auth', async () => {
   });
   await auth.signOut();
   assert.ok(calls.some(call => call.type === 'signout'));
+});
+
+test('verifies an emailed code into a session', async () => {
+  await auth.verifyEmailCode('person@example.com', '123456');
+  assert.deepEqual(calls.find(call => call.type === 'verify').input, {
+    email: 'person@example.com', token: '123456', type: 'email',
+  });
 });

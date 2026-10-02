@@ -42,6 +42,11 @@ export const auth = {
     });
     if (error) throw error;
   },
+  async verifyEmailCode(email: string, token: string) {
+    const { data, error } = await supabase().auth.verifyOtp({ email, token, type: "email" });
+    if (error) throw error;
+    if (!data.session) throw new Error("The code did not create a session. Please request a new code.");
+  },
   async signOut() {
     const { error } = await supabase().auth.signOut();
     if (error) throw error;

@@ -6,7 +6,7 @@ GitHub Pages hosts Ledger's static interface. Supabase Auth and Postgres store e
 
 Ledger Pages uses Supabase project `mlbhshcwtsaqbipptmoq`, configured in `ledger-pages/.env.production`. The [repository migration](../supabase/migrations/20261002150000_ledger_workspaces.sql) has already been applied to that project. It adds the workspace table, row-level security policies, and an atomic save function. The function compares the supplied revision before writing; a stale tab receives a conflict instead of silently replacing newer data. Existing original-app data is not automatically converted to the new workspace format.
 
-In this project's **Authentication → URL Configuration**, add `https://kavi-0507.github.io/ledgerv1/` as an allowed redirect URL. Keep email sign-in enabled. `ledger-pages/.env.production` contains this project's URL and active browser-safe publishable key; ignored `.env.local` uses the same values for local work. The repository root's `.env` belongs to the original app and is not used by Ledger Pages. Never use a secret or service-role key in this site.
+In this project's **Authentication → URL Configuration**, add `https://kavi-0507.github.io/ledgerv1/` as an allowed redirect URL. Keep email sign-in enabled. In **Authentication → Email Templates → Magic Link**, include the code variable in the email body, for example `<p>Your Ledger sign-in code: <strong>{{ .Token }}</strong></p>`. Ledger asks users to enter this code on the site; the link itself is not needed. Some email providers open one-time links automatically during security scanning, which can consume them before the user clicks. `ledger-pages/.env.production` contains this project's URL and active browser-safe publishable key; ignored `.env.local` uses the same values for local work. The repository root's `.env` belongs to the original app and is not used by Ledger Pages. Never use a secret or service-role key in this site.
 
 ## 2. Enable Pages in the existing GitHub repository
 
@@ -18,7 +18,7 @@ Open **Settings → Pages** and choose **GitHub Actions** as the build source. P
 
 ## 3. Verify the deployed app
 
-Open the Pages URL and check that the example loads. Choose **Use my own money**, request an email sign-in link, and follow it. Import a small CSV, categorize an uncertain merchant, set a budget, add and link a bill, reload, and confirm the data persisted. In two tabs, save in one and then try saving stale data in the other; Ledger should ask for a reload.
+Open the Pages URL and check that the example loads. Choose **Use my own money**, request an email code, and enter the code from the newest email on the site. Import a small CSV, categorize an uncertain merchant, set a budget, add and link a bill, reload, and confirm the data persisted. In two tabs, save in one and then try saving stale data in the other; Ledger should ask for a reload.
 
 The previous private Site's D1 workspaces and the original Lovable app's Supabase tables are **not** migrated by publishing this app. Keep them available until any required export and account-by-account migration is complete. ChatGPT sign-in IDs do not automatically map to Supabase Auth IDs.
 

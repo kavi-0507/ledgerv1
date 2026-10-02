@@ -2103,4 +2103,5 @@ dialog::backdrop {
 .ledger-auth label { font-weight: 650; }
 .ledger-auth input { width: 100%; padding: 12px; border: 1px solid #d8e0d8; border-radius: 9px; }
 .ledger-auth .button { justify-self: start; }
+.ledger-auth > .text-button { margin: 14px 14px 0 0; }
 @media(max-width:640px){ .review-actions { align-items:stretch; flex-direction:column; } .review-actions > *, .review-actions select { width:100%; } .runway-card .card-heading { align-items:flex-start; flex-direction:column; } }
