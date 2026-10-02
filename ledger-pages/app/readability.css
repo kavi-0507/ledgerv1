@@ -1,0 +1,383 @@
+/* Regular controls stay readable at every breakpoint. Metadata is secondary. */
+.sidebar nav button,
+.side-link,
+.metric-label,
+.button,
+.text-button,
+.budget-item-head,
+.transaction-info strong,
+.transaction-amount,
+.bill-amount strong,
+.bill-amount .text-button,
+.tabs button,
+.search input,
+.month-picker input,
+.mode-button,
+.card-bottom-link,
+.field > span,
+.payment-option strong,
+.history-row strong,
+.setup-banner strong,
+.attention-banner strong,
+.budget-tile > div:first-child,
+.breakdown-list > div {
+  font-size: 14px;
+}
+.page-subtitle,
+.dialog-description,
+.help-content p,
+.insight-list p {
+  font-size: 16px;
+}
+.card-heading p,
+.metric-detail,
+.transaction-info span,
+.transaction-info i,
+.bill-note,
+.chart-foot p,
+.metric-footer,
+.demo-notice,
+.demo-notice button,
+.metric-footer,
+.sample-label,
+.breadcrumb,
+.mini-select,
+.eyebrow,
+.nav-caption,
+.profile small,
+.workspace-label small,
+.drop-zone small,
+.step-indicator,
+.pill,
+.review-tag,
+.payment-option small,
+.history-row small,
+.breakdown-list span,
+.plan-summary p,
+.budget-tile small,
+.rules-list small,
+.field small,
+.checkbox-label small,
+.import-stats span {
+  font-size: 12px;
+}
+.transaction-info strong,
+.transaction-info span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sidebar-tip p {
+  font-size: 12px;
+}
+.sidebar-tip strong,
+.sidebar-tip button,
+.workspace-label,
+.profile strong {
+  font-size: 14px;
+}
+.card-heading h2 {
+  font-size: 18px;
+}
+.attention-banner p {
+  font-size: 12px;
+}
+.sidebar {
+  padding-top: 29px;
+}
+.workspace-label {
+  padding-top: 23px;
+  padding-bottom: 25px;
+}
+.workspace-label small {
+  line-height: 1.6;
+}
+.sidebar-tip {
+  padding: 15px;
+}
+.sidebar-tip button {
+  font-size: 12px;
+}
+.sidebar-tip p {
+  line-height: 1.65;
+}
+.metric {
+  min-height: 207px;
+}
+.metric-footer {
+  line-height: 1.6;
+}
+.card-heading {
+  margin-bottom: 22px;
+}
+.metric-label {
+  line-height: 1.6;
+}
+.metric-detail {
+  line-height: 1.7;
+}
+.transaction-row {
+  min-height: 70px;
+}
+.bill-row {
+  min-height: 72px;
+}
+.budget-list {
+  gap: 24px;
+}
+.chart-key {
+  font-size: 12px;
+}
+.card-bottom-link {
+  padding-top: 16px;
+}
+.budget-item-head small {
+  font-size: 12px;
+}
+.page-footer {
+  font-size: 12px;
+}
+.date-tile small {
+  font-size: 12px;
+}
+.date-tile {
+  height: 48px;
+  width: 43px;
+}
+.date-tile strong {
+  font-size: 17px;
+}
+.bill-note {
+  color: #748265;
+}
+.muted,
+.card-heading p,
+.page-subtitle,
+.transaction-info span,
+.metric-label,
+.metric-footer {
+  color: #6f7d65;
+}
+.main-metric .metric-footer {
+  color: #d0ddc7;
+}
+.card-heading p {
+  line-height: 1.7;
+}
+.field small,
+.checkbox-label small {
+  color: #6f7d65;
+}
+.metric-progress {
+  margin-top: 23px;
+}
+.toolbar {
+  flex-wrap: wrap;
+}
+.settings-divider p,
+.plain-note,
+.checkbox-label,
+.sample-table > div {
+  font-size: 14px;
+}
+.form-grid select {
+  font-size: 14px;
+}
+.dialog-head h2 {
+  line-height: 1.4;
+}
+.import-assurances {
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.error-banner {
+  font-size: 14px;
+}
+.setup-banner p {
+  font-size: 14px;
+}
+.mini-select {
+  white-space: nowrap;
+}
+.heading-actions {
+  flex-wrap: wrap;
+}
+.month-picker input {
+  width: 150px;
+}
+.main-metric .metric-label {
+  color: #e0e9d8;
+}
+@media (max-width: 1250px) {
+  .workspace-label > span:last-child {
+    font-size: 12px;
+  }
+  .workspace-label small {
+    font-size: 12px;
+  }
+  .workspace-avatar {
+    display: none;
+  }
+  .card-heading {
+    flex-wrap: wrap;
+  }
+  .sidebar-tip {
+    padding: 12px;
+  }
+  .sidebar nav button {
+    font-size: 14px;
+  }
+  .metric-number {
+    font-size: 34px;
+  }
+  .metric {
+    padding: 20px;
+  }
+}
+@media (max-width: 900px) {
+  .workspace-label small {
+    display: none;
+  }
+  .metric-number {
+    font-size: 29px;
+  }
+  .metric-label {
+    font-size: 13px;
+  }
+  .metric {
+    padding: 16px;
+  }
+  .card-heading {
+    flex-wrap: nowrap;
+  }
+  .metric-label svg {
+    display: none;
+  }
+  .sidebar-tip p {
+    font-size: 12px;
+  }
+}
+@media (max-width: 680px) {
+  .metric {
+    padding: 17px;
+    min-height: 202px;
+  }
+  .metric-number {
+    font-size: 29px;
+  }
+  .main-metric .metric-number {
+    font-size: 43px;
+  }
+  .main-metric .metric-label {
+    font-size: 14px;
+  }
+  .metric-detail {
+    font-size: 12px;
+  }
+  .metric-footer {
+    font-size: 12px;
+  }
+  .page-subtitle {
+    font-size: 16px;
+  }
+  .metric-label {
+    font-size: 13px;
+  }
+  .month-picker input {
+    font-size: 12px;
+    width: 124px;
+  }
+  .button {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+  .topbar .mode-button {
+    font-size: 12px;
+  }
+  .breadcrumb > span {
+    display: none;
+  }
+  .card-heading h2 {
+    font-size: 17px;
+  }
+  .card-heading p {
+    font-size: 12px;
+  }
+  .text-button {
+    font-size: 13px;
+  }
+  .tabs button {
+    font-size: 12px;
+    padding: 8px 7px;
+  }
+  .transactions-card .transaction-info strong,
+  .transactions-card .transaction-amount {
+    font-size: 14px;
+  }
+  .transactions-card .transaction-info span {
+    font-size: 12px;
+  }
+  .delete-small {
+    display: none;
+  }
+  .sidebar-tip p {
+    font-size: 12px;
+  }
+  .attention-banner strong {
+    font-size: 14px;
+  }
+  .attention-banner p {
+    font-size: 12px;
+  }
+  .attention-banner > div {
+    flex: 1;
+  }
+  .attention-banner .button {
+    font-size: 13px;
+  }
+  .bill-note {
+    font-size: 12px;
+  }
+  .page-footer {
+    font-size: 12px;
+    gap: 15px;
+  }
+  .page-footer > span:last-child {
+    display: none;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .setup-plan {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dialog-actions .button {
+    font-size: 13px;
+  }
+  .sample-table small {
+    font-size: 12px;
+  }
+  .history-row {
+    flex-wrap: wrap;
+  }
+  .history-row .text-button {
+    font-size: 13px;
+  }
+  .dialog-head h2 {
+    font-size: 21px;
+  }
+  .checkbox-label {
+    font-size: 14px;
+  }
+  .drop-zone small {
+    font-size: 12px;
+  }
+  .setup-plan .field > span {
+    font-size: 12px;
+  }
+  .metric-label svg {
+    display: none;
+  }
+  .mode-button svg {
+    display: none;
+  }
+}

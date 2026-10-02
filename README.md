@@ -1,5 +1,7 @@
 # Money Clarity
 
+The redesigned student Ledger app for GitHub Pages is in [`ledger-pages/`](ledger-pages/). See its [deployment guide](ledger-pages/GITHUB-PAGES.md). The existing Lovable app source remains in `src/` and its Git history is unchanged.
+
 This project already has a complete Python backend and SQLite database.
 
 Do NOT create another backend.
