@@ -59,7 +59,7 @@ import {
 } from "@/lib/ledger";
 import { ModalContent, type Modal, SettingsPanel } from "./forms";
 import ReviewPanel from "./review-panel";
-import { auth, loadWorkspace, saveWorkspace } from "@/lib/cloud-workspace";
+import { auth, authRedirectUrl, loadWorkspace, saveWorkspace } from "@/lib/cloud-workspace";
 type View =
   | "Overview"
   | "Transactions"
@@ -289,20 +289,14 @@ export default function Ledger() {
       const upgraded = upgradeState(j.state);
       setLive(upgraded);
       revision.current = j.revision;
-      if (
-        !demo ||
-        upgraded.setup ||
-        new URLSearchParams(location.search).get("mode") === "own"
-      ) {
-        setState(upgraded);
-        setDemo(false);
-      }
+      setState(upgraded);
+      setDemo(false);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [demo]);
+  }, []);
   useEffect(() => {
     if (didLoad.current) return;
     didLoad.current = true;
@@ -396,7 +390,7 @@ export default function Ledger() {
     setAuthSending(true);
     setAuthMessage("");
     try {
-      await auth.signInWithOtp(email.trim(), `${location.origin}${location.pathname}?mode=own`);
+      await auth.signInWithOtp(email.trim(), authRedirectUrl(location.href));
       setAuthMessage("Check your email for a sign-in link. Return to this page after opening it.");
     } catch (e) {
       setAuthMessage((e as Error).message);

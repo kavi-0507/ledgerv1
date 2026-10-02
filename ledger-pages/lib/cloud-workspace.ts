@@ -4,6 +4,12 @@ import { stateSchema } from "./state-schema";
 
 let client: SupabaseClient | undefined;
 
+export function authRedirectUrl(pageUrl: string): string {
+  const url = new URL(pageUrl);
+  const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
+  return `${url.origin}${path}`;
+}
+
 /** Inject a client in domain tests; production code never calls this. */
 export function setWorkspaceClientForTests(value: SupabaseClient | undefined) {
   client = value;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { auth, loadWorkspace, saveWorkspace, setWorkspaceClientForTests, validateWorkspace } from '../lib/cloud-workspace.ts';
+import { auth, authRedirectUrl, loadWorkspace, saveWorkspace, setWorkspaceClientForTests, validateWorkspace } from '../lib/cloud-workspace.ts';
 import { blankState } from '../lib/ledger.ts';
 
 const calls = [];
@@ -62,10 +62,12 @@ test('rejects broken category references before a database request', () => {
 });
 
 test('passes the Pages return URL to Supabase Auth', async () => {
-  await auth.signInWithOtp('person@example.com', 'https://kavi-0507.github.io/ledgerv1/?mode=own');
+  const returnUrl = authRedirectUrl('https://kavi-0507.github.io/ledgerv1/?mode=own#overview');
+  assert.equal(returnUrl, 'https://kavi-0507.github.io/ledgerv1/');
+  await auth.signInWithOtp('person@example.com', returnUrl);
   assert.deepEqual(calls.find(call => call.type === 'otp').input, {
     email: 'person@example.com',
-    options: { emailRedirectTo: 'https://kavi-0507.github.io/ledgerv1/?mode=own' },
+    options: { emailRedirectTo: 'https://kavi-0507.github.io/ledgerv1/' },
   });
   await auth.signOut();
   assert.ok(calls.some(call => call.type === 'signout'));
